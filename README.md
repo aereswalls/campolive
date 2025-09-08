@@ -19,7 +19,7 @@ Piattaforma di streaming e gestione eventi sportivi amatoriali.
 ## Setup Locale
 ```bash
 # Clona il repository
-git clone https://github.com/tuousername/campolive.git
+git clone https://github.com/aereswalls/campolive.git
 
 # Installa dipendenze
 cd campolive
