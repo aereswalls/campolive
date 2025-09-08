@@ -1,0 +1,26 @@
+{
+  "name": "campolive",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Piattaforma di streaming e gestione eventi sportivi amatoriali",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "start": "turbo start",
+    "lint": "turbo lint",
+    "clean": "turbo clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "turbo": "latest"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "author": "Leonardo Mazzone",
+  "license": "MIT"
+}
