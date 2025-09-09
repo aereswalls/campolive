@@ -191,3 +191,10 @@ export default async function EventDetailPage({ params }: { params: { id: string
     </div>
   )
 }
+        {/* Aggiungi questo bottone nella sezione Actions */}
+        <Link 
+          href={`/events/${params.id}/videos`}
+          className="bg-purple-600 text-white p-4 rounded-lg hover:bg-purple-700 flex items-center justify-center"
+        >
+          🎬 Visualizza Video
+        </Link>
