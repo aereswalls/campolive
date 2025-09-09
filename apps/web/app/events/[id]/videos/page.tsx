@@ -113,7 +113,7 @@ export default async function EventVideosPage({ params }: { params: { id: string
             </p>
             {event.status === 'scheduled' && (
               <p className="text-sm text-gray-500 mt-2">
-                L'evento è programmato per il {new Date(event.scheduled_at).toLocaleDateString('it-IT')}
+                L&apos;evento è programmato per il {new Date(event.scheduled_at).toLocaleDateString('it-IT')}
               </p>
             )}
           </div>

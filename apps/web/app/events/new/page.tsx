@@ -49,7 +49,7 @@ export default async function NewEventPage() {
             📹 Come funziona
           </h3>
           <p className="text-sm text-blue-700">
-            Crea l'evento gratuitamente. I crediti verranno consumati solo quando 
+            Crea l&apos;evento gratuitamente. I crediti verranno consumati solo quando 
             inizierai una diretta dall'app mobile (1 credito = 1 diretta completa con highlights).
           </p>
         </div>
