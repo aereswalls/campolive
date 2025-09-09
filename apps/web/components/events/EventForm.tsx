@@ -41,14 +41,14 @@ export default function EventForm({ teams, userId }: EventFormProps) {
     try {
       const supabase = createClient()
       
-      // Prima crea l'evento
+      // SOLO crea l'evento - NESSUN consumo crediti
       const { data: event, error: eventError } = await supabase
         .from('events')
         .insert({
           ...formData,
           created_by: userId,
-          credits_required: 5,
           status: 'scheduled'
+          // RIMOSSO credits_required
         })
         .select()
         .single()
@@ -57,21 +57,7 @@ export default function EventForm({ teams, userId }: EventFormProps) {
         throw new Error('Errore nella creazione dell\'evento: ' + eventError.message)
       }
       
-      // Poi consuma i crediti usando l'ID dell'evento creato
-      const { data: creditResult, error: creditError } = await supabase.rpc('consume_credits', {
-        p_user_id: userId,
-        p_amount: 5,
-        p_event_id: event.id,
-        p_description: 'Creazione evento: ' + formData.title
-      })
-      
-      if (creditError || !creditResult) {
-        // Se fallisce il consumo crediti, elimina l'evento
-        await supabase.from('events').delete().eq('id', event.id)
-        throw new Error('Crediti insufficienti o errore nel consumo crediti')
-      }
-      
-      // Successo! Naviga alla pagina dell'evento
+      // Naviga direttamente senza consumare crediti
       router.push(`/events/${event.id}`)
       router.refresh()
       
@@ -268,7 +254,7 @@ export default function EventForm({ teams, userId }: EventFormProps) {
           disabled={loading}
           className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? 'Creazione...' : 'Crea Evento (5 crediti)'}
+          {loading ? 'Creazione...' : 'Crea Evento'}
         </button>
       </div>
     </form>
