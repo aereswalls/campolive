@@ -33,14 +33,23 @@ export default async function TeamsPage() {
       <header className="bg-white shadow">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-green-600">
-              👥 I Miei Team
-            </h1>
+            <div className="flex items-center space-x-4">
+              <Link 
+                href="/dashboard" 
+                className="text-gray-600 hover:text-gray-900"
+              >
+                ← Dashboard
+              </Link>
+              <span className="text-gray-400">|</span>
+              <h1 className="text-2xl font-bold text-green-600">
+                👥 I Miei Team
+              </h1>
+            </div>
             <Link 
-              href="/dashboard" 
+              href="/events" 
               className="text-gray-600 hover:text-gray-900"
             >
-              ← Torna alla Dashboard
+              Eventi →
             </Link>
           </div>
         </div>

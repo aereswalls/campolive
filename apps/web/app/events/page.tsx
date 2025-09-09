@@ -6,14 +6,12 @@ import EventList from '@/components/events/EventList'
 export default async function EventsPage() {
   const supabase = createClient()
   
-  // Verifica autenticazione
   const { data: { user } } = await supabase.auth.getUser()
   
   if (!user) {
     redirect('/login')
   }
   
-  // Recupera eventi
   const { data: events, error } = await supabase
     .from('events')
     .select(`
@@ -26,24 +24,31 @@ export default async function EventsPage() {
   
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white shadow">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-green-600">
-              🏟️ I Miei Eventi
-            </h1>
+            <div className="flex items-center space-x-4">
+              <Link 
+                href="/dashboard" 
+                className="text-gray-600 hover:text-gray-900"
+              >
+                ← Dashboard
+              </Link>
+              <span className="text-gray-400">|</span>
+              <h1 className="text-2xl font-bold text-green-600">
+                🏟️ I Miei Eventi
+              </h1>
+            </div>
             <Link 
-              href="/dashboard" 
+              href="/teams" 
               className="text-gray-600 hover:text-gray-900"
             >
-              ← Torna alla Dashboard
+              Team →
             </Link>
           </div>
         </div>
       </header>
       
-      {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <div>
