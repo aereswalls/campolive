@@ -4,7 +4,13 @@ import { useState } from 'react'
 import { loadStripe } from '@stripe/stripe-js'
 import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js'
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
+const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY && 
+  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY !== 'pk_test_YOUR_KEY'
+  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+  : null
+
+const PAYPAL_CONFIGURED = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID && 
+  process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID !== 'YOUR_CLIENT_ID'
 
 interface Package {
   id: string
@@ -25,6 +31,11 @@ export default function CreditPackages({ packages, userId }: CreditPackagesProps
   const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'paypal'>('stripe')
   
   const handleStripeCheckout = async (packageId: string) => {
+    if (!stripePromise) {
+      alert('Stripe non è configurato. Configura le API keys nel file .env.local')
+      return
+    }
+    
     setLoading(packageId)
     
     try {
@@ -66,6 +77,20 @@ export default function CreditPackages({ packages, userId }: CreditPackagesProps
     }
   }
   
+  // Demo mode per testing
+  const handleDemoPayment = async (pkg: Package) => {
+    if (confirm(`DEMO MODE: Vuoi simulare l'acquisto di ${pkg.credits} crediti per €${pkg.price_web}?`)) {
+      setLoading(pkg.id)
+      
+      // Simula delay pagamento
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // In produzione questo sarebbe fatto dal webhook
+      alert(`DEMO: Acquisto completato! ${pkg.credits} crediti aggiunti (simulazione)`)
+      window.location.href = '/credits/success?demo=true'
+    }
+  }
+  
   return (
     <div>
       {/* Selettore Metodo Pagamento */}
@@ -81,18 +106,33 @@ export default function CreditPackages({ packages, userId }: CreditPackagesProps
           >
             💳 Carta di Credito
           </button>
-          <button
-            onClick={() => setPaymentMethod('paypal')}
-            className={`px-6 py-2 rounded-md transition ${
-              paymentMethod === 'paypal' 
-                ? 'bg-yellow-500 text-white' 
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            <span className="font-bold">Pay</span>Pal
-          </button>
+          {PAYPAL_CONFIGURED && (
+            <button
+              onClick={() => setPaymentMethod('paypal')}
+              className={`px-6 py-2 rounded-md transition ${
+                paymentMethod === 'paypal' 
+                  ? 'bg-yellow-500 text-white' 
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <span className="font-bold">Pay</span>Pal
+            </button>
+          )}
         </div>
       </div>
+      
+      {/* Avviso Demo Mode se non configurato */}
+      {!stripePromise && !PAYPAL_CONFIGURED && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <h3 className="font-semibold text-yellow-800 mb-1">🧪 Demo Mode</h3>
+          <p className="text-sm text-yellow-700">
+            I sistemi di pagamento non sono configurati. Usando la modalità demo per testing.
+          </p>
+          <p className="text-xs text-yellow-600 mt-2">
+            Per configurare: aggiungi le API keys di Stripe/PayPal in .env.local
+          </p>
+        </div>
+      )}
       
       {/* Pacchetti */}
       <div className="grid md:grid-cols-4 gap-6">
@@ -140,15 +180,27 @@ export default function CreditPackages({ packages, userId }: CreditPackagesProps
                 </li>
               </ul>
               
-              {paymentMethod === 'stripe' ? (
+              {/* Bottone pagamento basato su configurazione */}
+              {!stripePromise && !PAYPAL_CONFIGURED ? (
+                // Demo mode
+                <button
+                  onClick={() => handleDemoPayment(pkg)}
+                  disabled={loading === pkg.id}
+                  className="w-full bg-orange-600 text-white py-3 rounded-lg hover:bg-orange-700 disabled:opacity-50"
+                >
+                  {loading === pkg.id ? 'Elaborazione...' : '🧪 Demo Acquisto'}
+                </button>
+              ) : paymentMethod === 'stripe' && stripePromise ? (
+                // Stripe
                 <button
                   onClick={() => handleStripeCheckout(pkg.id)}
                   disabled={loading === pkg.id}
-                  className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
                   {loading === pkg.id ? 'Caricamento...' : 'Acquista con Carta'}
                 </button>
-              ) : (
+              ) : paymentMethod === 'paypal' && PAYPAL_CONFIGURED ? (
+                // PayPal
                 <PayPalScriptProvider 
                   options={{ 
                     clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID!,
@@ -171,6 +223,14 @@ export default function CreditPackages({ packages, userId }: CreditPackagesProps
                     }}
                   />
                 </PayPalScriptProvider>
+              ) : (
+                // Fallback
+                <button
+                  disabled
+                  className="w-full bg-gray-400 text-white py-3 rounded-lg cursor-not-allowed"
+                >
+                  Configura Pagamenti
+                </button>
               )}
             </div>
           </div>
