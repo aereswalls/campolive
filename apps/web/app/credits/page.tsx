@@ -1,7 +1,8 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import CreditPackages from '@/components/CreditPackages'
+import Navbar from '@/components/Navbar'
+import { CreditCard, TrendingUp, Shield, Clock } from 'lucide-react'
 
 export default async function CreditsPage() {
   const supabase = createClient()
@@ -23,7 +24,6 @@ export default async function CreditsPage() {
   const { data: packages } = await supabase
     .from('credit_packages')
     .select('*')
-    .eq('is_active', true)
     .order('sort_order')
   
   // Recupera storico acquisti
@@ -37,83 +37,104 @@ export default async function CreditsPage() {
   
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-green-600">
-              💰 Acquista Crediti
-            </h1>
-            <Link 
-              href="/dashboard" 
-              className="text-gray-600 hover:text-gray-900"
-            >
-              ← Dashboard
-            </Link>
-          </div>
-        </div>
-      </header>
+      <Navbar userEmail={user.email} />
       
-      <main className="container mx-auto px-4 py-8 max-w-6xl">
+      <main className="container mx-auto px-4 py-8 max-w-7xl">
+        {/* Page Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Acquista Crediti</h1>
+          <p className="text-gray-600">Scegli il pacchetto perfetto per le tue esigenze</p>
+        </div>
+        
         {/* Saldo Attuale */}
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
+        <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl shadow-lg p-6 mb-8 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold mb-1">Crediti Disponibili</h2>
-              <p className="text-gray-600">1 credito = 1 diretta completa con highlights</p>
+              <div className="flex items-center space-x-2 mb-2">
+                <CreditCard className="w-5 h-5" />
+                <h2 className="text-lg font-medium">Crediti Disponibili</h2>
+              </div>
+              <p className="text-green-100 text-sm">
+                1 credito = 1 diretta completa con highlights inclusi
+              </p>
             </div>
-            <div className="text-4xl font-bold text-green-600">
-              {userCredits?.balance || 0}
+            <div className="text-right">
+              <div className="text-5xl font-bold">{userCredits?.balance || 0}</div>
+              <div className="text-green-100 text-sm mt-1">crediti</div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Info Cards */}
+        <div className="grid md:grid-cols-3 gap-4 mb-8">
+          <div className="bg-white rounded-lg p-4 border border-gray-200">
+            <div className="flex items-center space-x-3">
+              <div className="bg-blue-100 p-2 rounded-lg">
+                <TrendingUp className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">Risparmia di più</h3>
+                <p className="text-sm text-gray-600">Fino al 50% di sconto</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-lg p-4 border border-gray-200">
+            <div className="flex items-center space-x-3">
+              <div className="bg-green-100 p-2 rounded-lg">
+                <Shield className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">Pagamento sicuro</h3>
+                <p className="text-sm text-gray-600">Stripe & PayPal</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-lg p-4 border border-gray-200">
+            <div className="flex items-center space-x-3">
+              <div className="bg-purple-100 p-2 rounded-lg">
+                <Clock className="w-5 h-5 text-purple-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">Nessuna scadenza</h3>
+                <p className="text-sm text-gray-600">Usa quando vuoi</p>
+              </div>
             </div>
           </div>
         </div>
         
         {/* Pacchetti */}
         <div className="mb-8">
-          <h2 className="text-2xl font-bold mb-6">Scegli un Pacchetto</h2>
+          <h2 className="text-2xl font-bold mb-6">Scegli il tuo pacchetto</h2>
           <CreditPackages packages={packages || []} userId={user.id} />
-        </div>
-        
-        {/* Info */}
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-            <h3 className="font-semibold text-blue-900 mb-2">💡 Come funziona</h3>
-            <ul className="text-sm text-blue-800 space-y-1">
-              <li>• 1 credito = 1 diretta streaming completa</li>
-              <li>• Highlights degli ultimi 30 secondi inclusi</li>
-              <li>• I crediti non scadono mai</li>
-              <li>• Più acquisti, più risparmi!</li>
-            </ul>
-          </div>
-          
-          <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-            <h3 className="font-semibold text-green-900 mb-2">🔒 Pagamento Sicuro</h3>
-            <ul className="text-sm text-green-800 space-y-1">
-              <li>• Pagamenti processati da Stripe/PayPal</li>
-              <li>• Certificazione PCI DSS</li>
-              <li>• Crittografia SSL/TLS</li>
-              <li>• Nessun dato salvato sui nostri server</li>
-            </ul>
-          </div>
         </div>
         
         {/* Storico Acquisti */}
         {transactions && transactions.length > 0 && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-xl font-semibold mb-4">Ultimi Acquisti</h3>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold mb-4">Acquisti Recenti</h3>
             <div className="space-y-3">
               {transactions.map((transaction) => (
-                <div key={transaction.id} className="flex justify-between items-center py-2 border-b">
-                  <div>
-                    <p className="font-medium">{Math.abs(transaction.amount)} crediti</p>
-                    <p className="text-sm text-gray-600">
-                      {new Date(transaction.created_at).toLocaleDateString('it-IT')}
-                    </p>
+                <div key={transaction.id} className="flex justify-between items-center py-3 border-b last:border-0">
+                  <div className="flex items-center space-x-4">
+                    <div className="bg-gray-100 p-2 rounded-lg">
+                      <CreditCard className="w-4 h-4 text-gray-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{Math.abs(transaction.amount)} crediti</p>
+                      <p className="text-sm text-gray-500">
+                        {new Date(transaction.created_at).toLocaleDateString('it-IT')}
+                      </p>
+                    </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-medium">
+                    <p className="font-semibold">
                       {transaction.metadata?.price ? `€${transaction.metadata.price}` : '-'}
                     </p>
-                    <p className="text-sm text-gray-600">{transaction.metadata?.method || 'Web'}</p>
+                    <p className="text-sm text-gray-500">
+                      {transaction.metadata?.method || 'Web'}
+                    </p>
                   </div>
                 </div>
               ))}

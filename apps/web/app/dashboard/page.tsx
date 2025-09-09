@@ -1,18 +1,18 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
+import Navbar from '@/components/Navbar'
+import { CreditCard, Calendar, Users, Video, TrendingUp, Activity } from 'lucide-react'
 
 export default async function DashboardPage() {
   const supabase = createClient()
   
-  // Verifica autenticazione
   const { data: { user } } = await supabase.auth.getUser()
   
   if (!user) {
     redirect('/login')
   }
 
-  // Recupera dati utente
   const { data: profile } = await supabase
     .from('user_profiles')
     .select('*')
@@ -25,7 +25,6 @@ export default async function DashboardPage() {
     .eq('user_id', user.id)
     .single()
 
-  // Se non ci sono crediti, creali al volo
   if (!credits) {
     const { data: newCredits } = await supabase
       .from('user_credits')
@@ -42,114 +41,105 @@ export default async function DashboardPage() {
     credits = newCredits
   }
 
-  // Conta gli eventi
   const { count: eventsCount } = await supabase
     .from('events')
     .select('*', { count: 'exact', head: true })
     .eq('created_by', user.id)
 
-  // Conta i team
   const { count: teamsCount } = await supabase
     .from('team_members')
     .select('*', { count: 'exact', head: true })
     .eq('user_id', user.id)
 
-  // Logout handler (client component)
-  async function signOut() {
-    'use server'
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    redirect('/login')
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-green-600">
-            🏟️ CampoLive Dashboard
-          </h1>
-          <div className="flex items-center space-x-4">
-            <span className="text-gray-600">
-              {user.email}
-            </span>
-            <form action={signOut}>
-              <button className="text-red-600 hover:text-red-700">
-                Esci
-              </button>
-            </form>
-          </div>
-        </div>
-      </header>
+      <Navbar userEmail={user.email} />
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Welcome Section */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-2xl font-bold mb-2">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Benvenuto {profile?.full_name || 'su CampoLive'}!
-          </h2>
+          </h1>
           <p className="text-gray-600">
-            Gestisci i tuoi eventi sportivi e trasmetti le partite in diretta.
+            Ecco un riepilogo della tua attività
           </p>
         </div>
 
         {/* Stats Grid */}
-        <div className="grid md:grid-cols-4 gap-6 mb-6">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-3xl font-bold text-green-600">
-              {credits?.balance || 0}
+        <div className="grid md:grid-cols-4 gap-4 mb-8">
+          <Link href="/credits" className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition">
+            <div className="flex items-center justify-between mb-4">
+              <div className="bg-green-100 p-3 rounded-lg">
+                <CreditCard className="w-6 h-6 text-green-600" />
+              </div>
+              <span className="text-3xl font-bold text-gray-900">
+                {credits?.balance || 0}
+              </span>
             </div>
-            <div className="text-gray-600">Crediti disponibili</div>
-            <Link href="/credits" className="text-sm text-green-600 hover:text-green-700 mt-2 inline-block">
-              Acquista crediti →
-            </Link>
-          </div>
+            <p className="text-gray-600 text-sm">Crediti disponibili</p>
+            <p className="text-green-600 text-sm mt-1">Acquista crediti →</p>
+          </Link>
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-3xl font-bold">{eventsCount || 0}</div>
-            <div className="text-gray-600">Eventi creati</div>
-            <Link href="/events" className="text-sm text-blue-600 hover:text-blue-700 mt-2 inline-block">
-              Vedi eventi →
-            </Link>
-          </div>
+          <Link href="/events" className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition">
+            <div className="flex items-center justify-between mb-4">
+              <div className="bg-blue-100 p-3 rounded-lg">
+                <Calendar className="w-6 h-6 text-blue-600" />
+              </div>
+              <span className="text-3xl font-bold text-gray-900">
+                {eventsCount || 0}
+              </span>
+            </div>
+            <p className="text-gray-600 text-sm">Eventi creati</p>
+            <p className="text-blue-600 text-sm mt-1">Vedi tutti →</p>
+          </Link>
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-3xl font-bold">{teamsCount || 0}</div>
-            <div className="text-gray-600">Team</div>
-            <Link href="/teams" className="text-sm text-purple-600 hover:text-purple-700 mt-2 inline-block">
-              Gestisci team →
-            </Link>
-          </div>
+          <Link href="/teams" className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition">
+            <div className="flex items-center justify-between mb-4">
+              <div className="bg-purple-100 p-3 rounded-lg">
+                <Users className="w-6 h-6 text-purple-600" />
+              </div>
+              <span className="text-3xl font-bold text-gray-900">
+                {teamsCount || 0}
+              </span>
+            </div>
+            <p className="text-gray-600 text-sm">I tuoi team</p>
+            <p className="text-purple-600 text-sm mt-1">Gestisci →</p>
+          </Link>
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-3xl font-bold">0</div>
-            <div className="text-gray-600">Video salvati</div>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="bg-orange-100 p-3 rounded-lg">
+                <Video className="w-6 h-6 text-orange-600" />
+              </div>
+              <span className="text-3xl font-bold text-gray-900">0</span>
+            </div>
+            <p className="text-gray-600 text-sm">Video salvati</p>
+            <p className="text-gray-400 text-sm mt-1">Presto disponibile</p>
           </div>
         </div>
 
         {/* Quick Actions */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-xl font-bold mb-4">Azioni rapide</h3>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+          <h2 className="text-lg font-semibold mb-4">Azioni rapide</h2>
           <div className="grid md:grid-cols-4 gap-4">
             <Link 
-              href="/events"
-              className="border-2 border-green-600 text-green-600 p-4 rounded-lg hover:bg-green-50 text-center font-medium"
-            >
-              📹 I Miei Eventi
-            </Link>
-            <Link 
               href="/events/new"
-              className="border-2 border-blue-600 text-blue-600 p-4 rounded-lg hover:bg-blue-50 text-center font-medium"
+              className="border-2 border-green-600 text-green-600 p-4 rounded-lg hover:bg-green-50 text-center font-medium transition"
             >
               ➕ Nuovo Evento
             </Link>
             <Link 
-              href="/teams"
-              className="border-2 border-purple-600 text-purple-600 p-4 rounded-lg hover:bg-purple-50 text-center font-medium"
+              href="/teams/new"
+              className="border-2 border-purple-600 text-purple-600 p-4 rounded-lg hover:bg-purple-50 text-center font-medium transition"
             >
               👥 Crea Team
+            </Link>
+            <Link 
+              href="/credits"
+              className="border-2 border-blue-600 text-blue-600 p-4 rounded-lg hover:bg-blue-50 text-center font-medium transition"
+            >
+              💳 Acquista Crediti
             </Link>
             <button 
               disabled
@@ -161,9 +151,13 @@ export default async function DashboardPage() {
         </div>
 
         {/* Recent Activity */}
-        <div className="mt-6 bg-white rounded-lg shadow p-6">
-          <h3 className="text-xl font-bold mb-4">Attività Recente</h3>
-          <div className="text-gray-500 text-center py-8">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Attività Recente</h2>
+            <Activity className="w-5 h-5 text-gray-400" />
+          </div>
+          <div className="text-gray-500 text-center py-12">
+            <Activity className="w-12 h-12 mx-auto mb-3 text-gray-300" />
             <p>Nessuna attività recente</p>
             <p className="text-sm mt-2">Le tue attività appariranno qui</p>
           </div>
