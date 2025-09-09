@@ -42,18 +42,6 @@ export default async function DashboardPage() {
     credits = newCredits
   }
 
-  // Conta gli eventi
-  const { count: eventsCount } = await supabase
-    .from('events')
-    .select('*', { count: 'exact', head: true })
-    .eq('created_by', user.id)
-
-  // Conta i team
-  const { count: teamsCount } = await supabase
-    .from('team_members')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-
   // Logout handler (client component)
   async function signOut() {
     'use server'
@@ -108,19 +96,13 @@ export default async function DashboardPage() {
           </div>
 
           <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-3xl font-bold">{eventsCount || 0}</div>
+            <div className="text-3xl font-bold">0</div>
             <div className="text-gray-600">Eventi creati</div>
-            <Link href="/events" className="text-sm text-blue-600 hover:text-blue-700 mt-2 inline-block">
-              Vedi eventi →
-            </Link>
           </div>
 
           <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-3xl font-bold">{teamsCount || 0}</div>
+            <div className="text-3xl font-bold">0</div>
             <div className="text-gray-600">Team</div>
-            <Link href="/teams" className="text-sm text-purple-600 hover:text-purple-700 mt-2 inline-block">
-              Gestisci team →
-            </Link>
           </div>
 
           <div className="bg-white rounded-lg shadow p-6">
@@ -132,40 +114,16 @@ export default async function DashboardPage() {
         {/* Quick Actions */}
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-xl font-bold mb-4">Azioni rapide</h3>
-          <div className="grid md:grid-cols-4 gap-4">
-            <Link 
-              href="/events"
-              className="border-2 border-green-600 text-green-600 p-4 rounded-lg hover:bg-green-50 text-center font-medium"
-            >
-              📹 I Miei Eventi
-            </Link>
-            <Link 
-              href="/events/new"
-              className="border-2 border-blue-600 text-blue-600 p-4 rounded-lg hover:bg-blue-50 text-center font-medium"
-            >
-              ➕ Nuovo Evento
-            </Link>
-            <Link 
-              href="/teams"
-              className="border-2 border-purple-600 text-purple-600 p-4 rounded-lg hover:bg-purple-50 text-center font-medium"
-            >
-              👥 Crea Team
-            </Link>
-            <button 
-              disabled
-              className="border-2 border-gray-300 text-gray-400 p-4 rounded-lg cursor-not-allowed text-center font-medium"
-            >
-              📡 Vai Live (Presto)
+          <div className="grid md:grid-cols-3 gap-4">
+            <button className="border-2 border-green-600 text-green-600 p-4 rounded-lg hover:bg-green-50">
+              📹 Nuovo Evento
             </button>
-          </div>
-        </div>
-
-        {/* Recent Activity */}
-        <div className="mt-6 bg-white rounded-lg shadow p-6">
-          <h3 className="text-xl font-bold mb-4">Attività Recente</h3>
-          <div className="text-gray-500 text-center py-8">
-            <p>Nessuna attività recente</p>
-            <p className="text-sm mt-2">Le tue attività appariranno qui</p>
+            <button className="border-2 border-blue-600 text-blue-600 p-4 rounded-lg hover:bg-blue-50">
+              👥 Crea Team
+            </button>
+            <button className="border-2 border-purple-600 text-purple-600 p-4 rounded-lg hover:bg-purple-50">
+              📡 Vai Live
+            </button>
           </div>
         </div>
       </main>
