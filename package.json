@@ -1,26 +1,36 @@
 {
-  "name": "campolive",
-  "version": "1.0.0",
+  "name": "web",
+  "version": "0.1.0",
   "private": true,
-  "description": "Piattaforma di streaming e gestione eventi sportivi amatoriali",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
   "scripts": {
-    "dev": "turbo dev",
-    "build": "turbo build",
-    "start": "turbo start",
-    "lint": "turbo lint",
-    "clean": "turbo clean && rm -rf node_modules"
+    "dev": "next dev --turbopack",
+    "build": "next build --turbopack",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@paypal/checkout-server-sdk": "^1.0.3",
+    "@paypal/react-paypal-js": "^8.9.1",
+    "@stripe/stripe-js": "^7.9.0",
+    "@supabase/ssr": "^0.7.0",
+    "@supabase/supabase-js": "^2.57.2",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.542.0",
+    "next": "15.5.2",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "stripe": "^18.5.0",
+    "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
-    "turbo": "latest"
-  },
-  "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=9.0.0"
-  },
-  "author": "Leonardo Mazzone",
-  "license": "MIT"
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "15.5.2",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
 }

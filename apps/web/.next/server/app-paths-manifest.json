@@ -1,0 +1,14 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/credits/page": "app/credits/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/dashboard/test-upload/page": "app/dashboard/test-upload/page.js",
+  "/dashboard/test-video/page": "app/dashboard/test-video/page.js",
+  "/events/new/page": "app/events/new/page.js",
+  "/events/page": "app/events/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/login/page": "app/login/page.js",
+  "/page": "app/page.js",
+  "/teams/new/page": "app/teams/new/page.js",
+  "/teams/page": "app/teams/page.js"
+}
