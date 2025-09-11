@@ -13,8 +13,6 @@ const SPORTS = [
   { value: 'volley', label: 'Pallavolo' },
   { value: 'tennis', label: 'Tennis' },
   { value: 'padel', label: 'Padel' },
-  { value: 'rugby', label: 'Rugby' },
-  { value: 'hockey', label: 'Hockey' },
 ]
 
 const FORMATS = [
@@ -25,7 +23,7 @@ const FORMATS = [
   { value: 'amichevole', label: 'Torneo Amichevole' },
 ]
 
-export default function TournamentForm({ userId }: { userId: string }) {
+export default function TournamentForm() {
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
@@ -46,6 +44,8 @@ export default function TournamentForm({ userId }: { userId: string }) {
     location: '',
     city: '',
     province: '',
+    primary_color: '#10B981',
+    secondary_color: '#065F46',
   })
   
   const handleSubmit = async (e: React.FormEvent) => {
@@ -53,21 +53,35 @@ export default function TournamentForm({ userId }: { userId: string }) {
     setLoading(true)
     setError(null)
     
-    const { data, error } = await supabase
-      .from('tournaments')
-      .insert({
+    try {
+      // Ottieni l'utente corrente
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        throw new Error('Devi essere autenticato per creare un torneo')
+      }
+      
+      // Prepara i dati includendo created_by
+      const tournamentData = {
         ...formData,
-        created_by: userId,
-        status: 'draft'
-      })
-      .select()
-      .single()
-    
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-    } else {
+        created_by: user.id,  // IMPORTANTE: Aggiungi esplicitamente created_by
+        status: 'draft',
+        country: 'IT'
+      }
+      
+      const { data, error } = await supabase
+        .from('tournaments')
+        .insert(tournamentData)
+        .select()
+        .single()
+      
+      if (error) throw error
+      
       router.push(`/tournaments/${data.id}`)
+    } catch (err: any) {
+      console.error('Errore creazione torneo:', err)
+      setError(err.message || 'Errore durante la creazione del torneo')
+      setLoading(false)
     }
   }
   
@@ -78,15 +92,6 @@ export default function TournamentForm({ userId }: { userId: string }) {
           {error}
         </div>
       )}
-      
-      {/* Info box */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="font-medium text-blue-900 mb-1">💡 Come funziona</h3>
-        <p className="text-sm text-blue-700">
-          La creazione del torneo è gratuita. I crediti verranno utilizzati solo quando 
-          registrerai le partite live tramite l'app mobile (1 credito = 1 diretta con highlights).
-        </p>
-      </div>
       
       <div className="grid md:grid-cols-2 gap-6">
         <div>
@@ -131,7 +136,7 @@ export default function TournamentForm({ userId }: { userId: string }) {
           onChange={(e) => setFormData({...formData, description: e.target.value})}
           rows={3}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-          placeholder="Descrivi il tuo torneo..."
+          placeholder="Descrivi il torneo, regolamento, premi..."
         />
       </div>
       
@@ -155,44 +160,15 @@ export default function TournamentForm({ userId }: { userId: string }) {
         
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Località
+            Numero Max Squadre
           </label>
           <input
-            type="text"
-            value={formData.location}
-            onChange={(e) => setFormData({...formData, location: e.target.value})}
+            type="number"
+            min="2"
+            max="64"
+            value={formData.max_teams}
+            onChange={(e) => setFormData({...formData, max_teams: parseInt(e.target.value)})}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-            placeholder="es. Centro Sportivo Comunale"
-          />
-        </div>
-      </div>
-      
-      <div className="grid md:grid-cols-2 gap-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Città *
-          </label>
-          <input
-            type="text"
-            required
-            value={formData.city}
-            onChange={(e) => setFormData({...formData, city: e.target.value})}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-            placeholder="es. Napoli"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Provincia
-          </label>
-          <input
-            type="text"
-            value={formData.province}
-            onChange={(e) => setFormData({...formData, province: e.target.value})}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-            placeholder="es. NA"
-            maxLength={2}
           />
         </div>
       </div>
@@ -237,61 +213,45 @@ export default function TournamentForm({ userId }: { userId: string }) {
         </div>
       </div>
       
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-3 gap-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Numero Squadre
+            Luogo/Campo
           </label>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-xs text-gray-500">Min</label>
-              <input
-                type="number"
-                min="2"
-                value={formData.min_teams}
-                onChange={(e) => setFormData({...formData, min_teams: parseInt(e.target.value)})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">Max</label>
-              <input
-                type="number"
-                min={formData.min_teams}
-                value={formData.max_teams}
-                onChange={(e) => setFormData({...formData, max_teams: parseInt(e.target.value)})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-          </div>
+          <input
+            type="text"
+            value={formData.location}
+            onChange={(e) => setFormData({...formData, location: e.target.value})}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+            placeholder="es. Centro Sportivo"
+          />
         </div>
         
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Giocatori per Squadra
+            Città
           </label>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-xs text-gray-500">Min</label>
-              <input
-                type="number"
-                min="5"
-                value={formData.min_players_per_team}
-                onChange={(e) => setFormData({...formData, min_players_per_team: parseInt(e.target.value)})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">Max</label>
-              <input
-                type="number"
-                min={formData.min_players_per_team}
-                value={formData.max_players_per_team}
-                onChange={(e) => setFormData({...formData, max_players_per_team: parseInt(e.target.value)})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-          </div>
+          <input
+            type="text"
+            value={formData.city}
+            onChange={(e) => setFormData({...formData, city: e.target.value})}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+            placeholder="es. Napoli"
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Provincia
+          </label>
+          <input
+            type="text"
+            value={formData.province}
+            onChange={(e) => setFormData({...formData, province: e.target.value})}
+            maxLength={2}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+            placeholder="es. NA"
+          />
         </div>
       </div>
       
