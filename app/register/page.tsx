@@ -96,7 +96,7 @@ export default function RegisterPage() {
             Crea il tuo account
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Inizia con 10 crediti gratuiti!
+            Inizia con 3 crediti gratuiti!
           </p>
         </div>
         

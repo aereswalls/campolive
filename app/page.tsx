@@ -91,7 +91,7 @@ export default function LandingPage() {
             href="/register" 
             className="inline-block bg-green-600 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-green-700"
           >
-            Inizia con 10 crediti gratuiti
+            Inizia con 3 crediti gratuiti
           </Link>
         </div>
       </section>

@@ -30,8 +30,8 @@ export default async function DashboardPage() {
       .from('user_credits')
       .insert({
         user_id: user.id,
-        balance: 10,
-        total_earned: 10,
+        balance: 3,
+        total_earned: 3,
         total_purchased: 0,
         total_consumed: 0
       })
