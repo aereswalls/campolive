@@ -4,7 +4,7 @@ import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import InviteCollaborator from '@/components/tournaments/InviteCollaborator'
 import CollaboratorActions from '@/components/tournaments/CollaboratorActions'
-import { Users, Crown, UserCheck, Mail, Clock, X } from 'lucide-react'
+import { Users, Crown, UserCheck, Mail, Clock } from 'lucide-react'
 
 export default async function TournamentCollaboratorsPage({
   params
@@ -35,22 +35,42 @@ export default async function TournamentCollaboratorsPage({
     redirect(`/tournaments/${params.id}`)
   }
   
-  // Query modificata per gestire user_id NULL
-  const { data: collaborators } = await supabase
+  // Query semplificata per i collaboratori
+  const { data: collaborators, error } = await supabase
     .from('tournament_collaborators')
-    .select(`
-      *,
-      user_profiles (
-        email,
-        full_name,
-        username
-      )
-    `)
+    .select('*')
     .eq('tournament_id', params.id)
-    .order('created_at', { ascending: false })
+    .order('invited_at', { ascending: false })
   
-  const acceptedCollaborators = collaborators?.filter(c => c.status === 'accepted') || []
-  const pendingCollaborators = collaborators?.filter(c => c.status === 'pending') || []
+  if (error) {
+    console.error('Error fetching collaborators:', error)
+  }
+  
+  // Per ogni collaboratore con user_id, recupera i dati del profilo
+  const collaboratorsWithProfiles = await Promise.all(
+    (collaborators || []).map(async (collab) => {
+      let userProfile = null
+      
+      if (collab.user_id) {
+        const { data } = await supabase
+          .from('user_profiles')
+          .select('email, full_name, username')
+          .eq('id', collab.user_id)
+          .single()
+        
+        userProfile = data
+      }
+      
+      return {
+        ...collab,
+        user_profiles: userProfile
+      }
+    })
+  )
+  
+  // Separa accettati e pendenti basandosi sullo status
+  const acceptedCollaborators = collaboratorsWithProfiles.filter(c => c.status === 'accepted')
+  const pendingCollaborators = collaboratorsWithProfiles.filter(c => c.status === 'pending')
   
   return (
     <div className="min-h-screen bg-gray-50">
@@ -78,7 +98,7 @@ export default async function TournamentCollaboratorsPage({
           <div className="md:col-span-1">
             <InviteCollaborator 
               tournamentId={params.id}
-              existingCollaborators={[...acceptedCollaborators, ...pendingCollaborators]}
+              existingCollaborators={collaboratorsWithProfiles}
             />
             
             <div className="bg-blue-50 rounded-lg border border-blue-200 p-6 mt-6">
@@ -105,35 +125,47 @@ export default async function TournamentCollaboratorsPage({
               
               {acceptedCollaborators.length > 0 ? (
                 <div className="space-y-3">
-                  {acceptedCollaborators.map((collab) => (
-                    <div key={collab.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <div className="font-medium">
-                          {collab.user_profiles?.full_name || collab.user_profiles?.email || collab.invited_email || 'Email non disponibile'}
+                  {acceptedCollaborators.map((collab) => {
+                    const displayName = collab.user_profiles?.full_name || 
+                                       collab.user_profiles?.email || 
+                                       collab.invited_email || 
+                                       'Utente'
+                    const displayEmail = collab.invited_email || 
+                                        collab.user_profiles?.email || 
+                                        'Email non disponibile'
+                    
+                    return (
+                      <div key={collab.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div>
+                          <div className="font-medium">{displayName}</div>
+                          <div className="text-sm text-gray-500">
+                            {displayEmail}
+                          </div>
+                          <div className="text-xs text-gray-400 mt-1">
+                            Aggiunto il {new Date(collab.invited_at).toLocaleDateString('it-IT')}
+                          </div>
                         </div>
-                        <div className="text-sm text-gray-500">
-                          {collab.invited_email || collab.user_profiles?.email}
-                        </div>
-                        <div className="text-xs text-gray-400 mt-1">
-                          Aggiunto il {new Date(collab.invited_at).toLocaleDateString('it-IT')}
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded">
+                            {collab.role === 'co_organizer' ? 'Co-organizzatore' : 'Assistente'}
+                          </span>
+                          <CollaboratorActions 
+                            collaboratorId={collab.id}
+                            tournamentId={params.id}
+                          />
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded">
-                          {collab.role === 'co_organizer' ? 'Co-organizzatore' : 'Assistente'}
-                        </span>
-                        <CollaboratorActions 
-                          collaboratorId={collab.id}
-                          tournamentId={params.id}
-                        />
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : (
-                <p className="text-gray-500 text-center py-4">
-                  Nessun co-organizzatore attivo
-                </p>
+                <div className="text-gray-500 text-center py-8">
+                  <UserCheck className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                  <p>Nessun co-organizzatore attivo</p>
+                  <p className="text-sm mt-2">
+                    Invita altri utenti per collaborare nella gestione del torneo
+                  </p>
+                </div>
               )}
             </div>
             
@@ -156,7 +188,7 @@ export default async function TournamentCollaboratorsPage({
                       </div>
                       <div className="flex items-center space-x-2">
                         <Mail className="w-4 h-4 text-yellow-600" />
-                        <span className="text-xs text-yellow-600">In attesa di registrazione</span>
+                        <span className="text-xs text-yellow-600">In attesa</span>
                         <CollaboratorActions 
                           collaboratorId={collab.id}
                           tournamentId={params.id}
