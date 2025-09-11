@@ -35,11 +35,12 @@ export default async function TournamentCollaboratorsPage({
     redirect(`/tournaments/${params.id}`)
   }
   
+  // Query modificata per gestire user_id NULL
   const { data: collaborators } = await supabase
     .from('tournament_collaborators')
     .select(`
       *,
-      user_profiles!tournament_collaborators_user_id_fkey (
+      user_profiles (
         email,
         full_name,
         username
@@ -74,14 +75,12 @@ export default async function TournamentCollaboratorsPage({
         </div>
         
         <div className="grid md:grid-cols-3 gap-8">
-          {/* Form invito */}
           <div className="md:col-span-1">
             <InviteCollaborator 
               tournamentId={params.id}
               existingCollaborators={[...acceptedCollaborators, ...pendingCollaborators]}
             />
             
-            {/* Info permessi */}
             <div className="bg-blue-50 rounded-lg border border-blue-200 p-6 mt-6">
               <h3 className="font-semibold mb-3 text-blue-900">
                 Permessi Co-organizzatori
@@ -97,9 +96,7 @@ export default async function TournamentCollaboratorsPage({
             </div>
           </div>
           
-          {/* Lista collaboratori */}
           <div className="md:col-span-2 space-y-6">
-            {/* Collaboratori attivi */}
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <h3 className="font-semibold mb-4 flex items-center space-x-2">
                 <UserCheck className="w-5 h-5 text-green-600" />
@@ -112,10 +109,10 @@ export default async function TournamentCollaboratorsPage({
                     <div key={collab.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div>
                         <div className="font-medium">
-                          {collab.user_profiles?.full_name || collab.user_profiles?.email || collab.invited_email}
+                          {collab.user_profiles?.full_name || collab.user_profiles?.email || collab.invited_email || 'Email non disponibile'}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {collab.invited_email}
+                          {collab.invited_email || collab.user_profiles?.email}
                         </div>
                         <div className="text-xs text-gray-400 mt-1">
                           Aggiunto il {new Date(collab.invited_at).toLocaleDateString('it-IT')}
@@ -140,7 +137,6 @@ export default async function TournamentCollaboratorsPage({
               )}
             </div>
             
-            {/* Inviti pendenti */}
             {pendingCollaborators.length > 0 && (
               <div className="bg-yellow-50 rounded-lg border border-yellow-200 p-6">
                 <h3 className="font-semibold mb-4 flex items-center space-x-2 text-yellow-900">
@@ -152,7 +148,7 @@ export default async function TournamentCollaboratorsPage({
                     <div key={collab.id} className="flex items-center justify-between p-3 bg-white rounded-lg">
                       <div>
                         <div className="font-medium">
-                          {collab.invited_email}
+                          {collab.invited_email || 'Email non specificata'}
                         </div>
                         <div className="text-xs text-yellow-600 mt-1">
                           Invitato il {new Date(collab.invited_at).toLocaleDateString('it-IT')}
