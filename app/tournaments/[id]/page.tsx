@@ -2,7 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Navbar from '@/components/Navbar'
-import { Trophy, Users, Calendar, MapPin, Plus } from 'lucide-react'
+import { Trophy, Users, Calendar, MapPin, Plus, BarChart } from 'lucide-react'
 
 export default async function TournamentDetailPage({
   params
@@ -34,6 +34,7 @@ export default async function TournamentDetailPage({
   }
   
   const isOwner = tournament.created_by === user.id
+  const approvedTeams = tournament.tournament_teams?.filter((tt: any) => tt.registration_status === 'approved')
   
   return (
     <div className="min-h-screen bg-gray-50">
@@ -57,14 +58,14 @@ export default async function TournamentDetailPage({
             </div>
             <div className="flex items-center space-x-2">
               <Trophy className="w-8 h-8 text-yellow-500" />
-              <span className="text-lg font-medium">{tournament.sport}</span>
+              <span className="text-lg font-medium capitalize">{tournament.sport.replace('_', ' ')}</span>
             </div>
           </div>
           
           <div className="grid md:grid-cols-4 gap-4 mb-6">
             <div className="flex items-center space-x-2 text-gray-600">
               <Calendar className="w-5 h-5" />
-              <span>{tournament.start_date || 'Da definire'}</span>
+              <span>{tournament.start_date ? new Date(tournament.start_date).toLocaleDateString('it-IT') : 'Da definire'}</span>
             </div>
             <div className="flex items-center space-x-2 text-gray-600">
               <MapPin className="w-5 h-5" />
@@ -72,37 +73,67 @@ export default async function TournamentDetailPage({
             </div>
             <div className="flex items-center space-x-2 text-gray-600">
               <Users className="w-5 h-5" />
-              <span>{tournament.tournament_teams?.length || 0}/{tournament.max_teams} squadre</span>
+              <span>{approvedTeams?.length || 0}/{tournament.max_teams} squadre</span>
             </div>
             <div>
-              <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
-                {tournament.status}
+              <span className={`px-3 py-1 rounded-full text-sm ${
+                tournament.status === 'draft' ? 'bg-gray-100 text-gray-700' :
+                tournament.status === 'registration_open' ? 'bg-blue-100 text-blue-700' :
+                tournament.status === 'in_progress' ? 'bg-green-100 text-green-700' :
+                tournament.status === 'completed' ? 'bg-purple-100 text-purple-700' :
+                'bg-red-100 text-red-700'
+              }`}>
+                {tournament.status === 'draft' ? 'Bozza' :
+                 tournament.status === 'registration_open' ? 'Iscrizioni Aperte' :
+                 tournament.status === 'in_progress' ? 'In Corso' :
+                 tournament.status === 'completed' ? 'Completato' :
+                 'Cancellato'}
               </span>
             </div>
           </div>
           
-          {isOwner && (
-            <div className="flex space-x-4">
-              <Link
-                href={`/tournaments/${params.id}/teams`}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Gestisci Squadre
-              </Link>
-              <Link
-                href={`/tournaments/${params.id}/standings`}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-              >
-                Classifica
-              </Link>
-            </div>
-          )}
+          {/* Navigation Buttons */}
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href={`/tournaments/${params.id}/standings`}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+            >
+              <BarChart className="w-4 h-4" />
+              <span>Classifica</span>
+            </Link>
+            <Link
+              href={`/tournaments/${params.id}/matches`}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center space-x-2"
+            >
+              <Calendar className="w-4 h-4" />
+              <span>Calendario Partite</span>
+            </Link>
+            {isOwner && (
+              <>
+                <Link
+                  href={`/tournaments/${params.id}/teams`}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center space-x-2"
+                >
+                  <Users className="w-4 h-4" />
+                  <span>Gestisci Squadre</span>
+                </Link>
+                <button
+                  onClick={() => {
+                    // TODO: Implementare cambio stato
+                  }}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                >
+                  Modifica Stato
+                </button>
+              </>
+            )}
+          </div>
         </div>
         
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold">Squadre Iscritte</h2>
-            {isOwner && (
+            <h2 className="text-xl font-bold">Squadre Iscritte ({approvedTeams?.length || 0})</h2>
+            {isOwner && tournament.status === 'registration_open' && (
               <Link
                 href={`/tournaments/${params.id}/teams/add`}
                 className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
@@ -117,25 +148,48 @@ export default async function TournamentDetailPage({
             {tournament.tournament_teams?.map((tt: any) => (
               <Link
                 key={tt.id}
-                href={`/tournaments/${params.id}/teams/${tt.team.id}`}
+                href={`/teams/${tt.team.id}`}
                 className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold">{tt.team.name}</h3>
+                  <h3 className="font-semibold text-lg">{tt.team.name}</h3>
                   <span className={`px-2 py-1 rounded text-xs ${
                     tt.registration_status === 'approved' 
                       ? 'bg-green-100 text-green-700' 
-                      : 'bg-yellow-100 text-yellow-700'
+                      : tt.registration_status === 'pending'
+                      ? 'bg-yellow-100 text-yellow-700'
+                      : 'bg-red-100 text-red-700'
                   }`}>
-                    {tt.registration_status}
+                    {tt.registration_status === 'approved' ? 'Confermata' :
+                     tt.registration_status === 'pending' ? 'In Attesa' :
+                     'Rifiutata'}
                   </span>
                 </div>
-                <p className="text-sm text-gray-600">
-                  {tt.team.city} • {tt.matches_played || 0} partite giocate
-                </p>
+                <div className="text-sm text-gray-600">
+                  <p>{tt.team.city}</p>
+                  {tt.registration_status === 'approved' && (
+                    <div className="mt-2 flex space-x-4">
+                      <span>P: {tt.matches_played}</span>
+                      <span>V: {tt.matches_won}</span>
+                      <span>N: {tt.matches_drawn}</span>
+                      <span>S: {tt.matches_lost}</span>
+                      <span className="font-bold">Pts: {tt.points}</span>
+                    </div>
+                  )}
+                </div>
               </Link>
             ))}
           </div>
+          
+          {(!tournament.tournament_teams || tournament.tournament_teams.length === 0) && (
+            <div className="text-center py-12 text-gray-500">
+              <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+              <p>Nessuna squadra iscritta</p>
+              {tournament.status === 'registration_open' && (
+                <p className="text-sm mt-2">Le iscrizioni sono aperte!</p>
+              )}
+            </div>
+          )}
         </div>
       </main>
     </div>
