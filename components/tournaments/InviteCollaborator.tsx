@@ -26,23 +26,26 @@ export default function InviteCollaborator({
     setSuccess(false)
     
     try {
-      // Verifica se l'utente esiste
-      const { data: users } = await supabase
+      // Prima cerca l'utente in auth.users tramite una funzione RPC
+      // O cerca direttamente in user_profiles se l'email è presente
+      const { data: profile, error: profileError } = await supabase
         .from('user_profiles')
-        .select('id')
-        .eq('email', email.trim())
+        .select('id, email')
+        .eq('email', email.trim().toLowerCase())
         .single()
       
-      if (!users) {
-        setError('Utente non trovato. Assicurati che sia registrato su CampoLive.')
+      if (profileError || !profile) {
+        // Se non trovato in user_profiles, proviamo un approccio diverso
+        // Cerchiamo per ID se l'utente esiste
+        setError('Utente non trovato. Verifica che l\'email sia corretta e che l\'utente sia registrato.')
         setLoading(false)
         return
       }
       
       // Verifica se è già collaboratore
-      const existing = existingCollaborators.find(c => c.user_id === users.id)
+      const existing = existingCollaborators.find(c => c.user_id === profile.id)
       if (existing) {
-        setError('Questo utente è già un collaboratore del torneo.')
+        setError('Questo utente è già un co-organizzatore del torneo.')
         setLoading(false)
         return
       }
@@ -50,25 +53,40 @@ export default function InviteCollaborator({
       // Ottieni l'utente corrente
       const { data: { user } } = await supabase.auth.getUser()
       
+      if (!user) {
+        setError('Devi essere autenticato per invitare co-organizzatori')
+        setLoading(false)
+        return
+      }
+      
       // Invia invito
       const { error: inviteError } = await supabase
         .from('tournament_collaborators')
         .insert({
           tournament_id: tournamentId,
-          user_id: users.id,
-          invited_by: user?.id,
+          user_id: profile.id,
+          invited_by: user.id,
           role: 'co_organizer',
           status: 'accepted' // Auto-accetta per semplicità
         })
       
-      if (inviteError) throw inviteError
+      if (inviteError) {
+        console.error('Errore invito:', inviteError)
+        setError('Errore durante l\'invito. Riprova.')
+        setLoading(false)
+        return
+      }
       
       setSuccess(true)
       setEmail('')
-      router.refresh()
+      setTimeout(() => {
+        setSuccess(false)
+        router.refresh()
+      }, 2000)
       
     } catch (err: any) {
-      setError(err.message || 'Errore durante l\'invito')
+      console.error('Errore:', err)
+      setError('Si è verificato un errore. Riprova.')
     } finally {
       setLoading(false)
     }
@@ -78,12 +96,14 @@ export default function InviteCollaborator({
     if (!confirm('Rimuovere questo co-organizzatore?')) return
     
     try {
-      await supabase
+      const { error } = await supabase
         .from('tournament_collaborators')
         .delete()
         .eq('id', collaboratorId)
       
-      router.refresh()
+      if (!error) {
+        router.refresh()
+      }
     } catch (err) {
       console.error('Errore rimozione:', err)
     }
@@ -126,6 +146,10 @@ export default function InviteCollaborator({
         {success && (
           <p className="text-green-600 text-sm mt-2">Co-organizzatore aggiunto con successo!</p>
         )}
+        
+        <p className="text-xs text-gray-500 mt-2">
+          Nota: L'utente deve essere registrato su CampoLive con questa email.
+        </p>
       </form>
       
       {existingCollaborators.length > 0 && (
@@ -133,10 +157,13 @@ export default function InviteCollaborator({
           <p className="text-sm text-gray-600 mb-2">Co-organizzatori attuali:</p>
           {existingCollaborators.map((collab) => (
             <div key={collab.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-              <span className="text-sm">{collab.user_profiles?.email}</span>
+              <span className="text-sm">
+                {collab.user_profiles?.email || collab.user_profiles?.full_name || 'Co-organizzatore'}
+              </span>
               <button
                 onClick={() => handleRemove(collab.id)}
-                className="text-red-600 hover:text-red-700"
+                className="text-red-600 hover:text-red-700 p-1"
+                title="Rimuovi"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -144,10 +171,6 @@ export default function InviteCollaborator({
           ))}
         </div>
       )}
-      
-      <p className="text-xs text-gray-500 mt-4">
-        I co-organizzatori possono gestire squadre, partite e risultati del torneo.
-      </p>
     </div>
   )
 }
