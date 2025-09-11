@@ -2,7 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Navbar from '@/components/Navbar'
-import { Trophy, Users, Calendar, MapPin, Plus, BarChart } from 'lucide-react'
+import { Trophy, Users, Calendar, MapPin, Plus, BarChart, Edit } from 'lucide-react'
 
 interface PageProps {
   params: {
@@ -123,6 +123,13 @@ export default async function TournamentDetailPage({ params }: PageProps) {
             </Link>
             {isOwner && (
               <>
+                <Link
+                  href={`/tournaments/${params.id}/edit`}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center space-x-2"
+                >
+                  <Edit className="w-4 h-4" />
+                  <span>Modifica</span>
+                </Link>
                 <Link
                   href={`/tournaments/${params.id}/teams/add`}
                   className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 flex items-center space-x-2"
