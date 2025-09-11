@@ -19,7 +19,6 @@ export default async function TournamentDetailPage({ params }: PageProps) {
     redirect('/login')
   }
   
-  // Verifica che l'ID sia valido
   if (!params.id) {
     redirect('/tournaments')
   }
@@ -123,13 +122,22 @@ export default async function TournamentDetailPage({ params }: PageProps) {
               <span>Calendario Partite</span>
             </Link>
             {isOwner && (
-              <Link
-                href={`/tournaments/${params.id}/teams`}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center space-x-2"
-              >
-                <Users className="w-4 h-4" />
-                <span>Gestisci Squadre</span>
-              </Link>
+              <>
+                <Link
+                  href={`/tournaments/${params.id}/teams/add`}
+                  className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 flex items-center space-x-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Aggiungi Squadre</span>
+                </Link>
+                <Link
+                  href={`/tournaments/${params.id}/teams`}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center space-x-2"
+                >
+                  <Users className="w-4 h-4" />
+                  <span>Gestisci Squadre</span>
+                </Link>
+              </>
             )}
           </div>
         </div>
@@ -139,6 +147,15 @@ export default async function TournamentDetailPage({ params }: PageProps) {
             <h2 className="text-xl font-bold">
               Squadre Iscritte ({approvedTeams.length})
             </h2>
+            {isOwner && approvedTeams.length < (tournament.max_teams || 16) && (
+              <Link
+                href={`/tournaments/${params.id}/teams/add`}
+                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Aggiungi Squadra</span>
+              </Link>
+            )}
           </div>
           
           {tournament.tournament_teams && tournament.tournament_teams.length > 0 ? (
@@ -184,8 +201,13 @@ export default async function TournamentDetailPage({ params }: PageProps) {
             <div className="text-center py-12 text-gray-500">
               <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p>Nessuna squadra iscritta</p>
-              {tournament.status === 'registration_open' && (
-                <p className="text-sm mt-2">Le iscrizioni sono aperte!</p>
+              {isOwner && (
+                <Link 
+                  href={`/tournaments/${params.id}/teams/add`}
+                  className="inline-block mt-3 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  Aggiungi Prima Squadra
+                </Link>
               )}
             </div>
           )}
