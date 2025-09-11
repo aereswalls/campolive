@@ -41,7 +41,7 @@ export default async function DashboardPage() {
     credits = newCredits
   }
 
-  // Statistiche SOLO dell'utente corrente
+  // Statistiche
   const { count: eventsCount } = await supabase
     .from('events')
     .select('*', { count: 'exact', head: true })
@@ -52,12 +52,21 @@ export default async function DashboardPage() {
     .select('*', { count: 'exact', head: true })
     .eq('user_id', user.id)
   
-  const { count: tournamentsCount } = await supabase
+  // Conta TUTTI i tornei (creati + co-organizzatore)
+  const { data: ownTournaments } = await supabase
     .from('tournaments')
-    .select('*', { count: 'exact', head: true })
+    .select('id')
     .eq('created_by', user.id)
   
-  // Eventi recenti SOLO dell'utente
+  const { data: collaborations } = await supabase
+    .from('tournament_collaborators')
+    .select('tournament_id')
+    .eq('user_id', user.id)
+    .eq('status', 'accepted')
+  
+  const totalTournamentsCount = (ownTournaments?.length || 0) + (collaborations?.length || 0)
+  
+  // Eventi recenti dell'utente
   const { data: recentEvents } = await supabase
     .from('events')
     .select(`
@@ -69,14 +78,28 @@ export default async function DashboardPage() {
     .order('scheduled_at', { ascending: false })
     .limit(3)
   
-  // Tornei SOLO creati dall'utente
-  const { data: activeTournaments } = await supabase
+  // Tornei attivi (creati + co-organizzatore)
+  const { data: ownActiveTournaments } = await supabase
     .from('tournaments')
     .select('*')
     .eq('created_by', user.id)
     .in('status', ['registration_open', 'in_progress'])
-    .order('created_at', { ascending: false })
-    .limit(3)
+  
+  let collaborativeTournaments = []
+  if (collaborations && collaborations.length > 0) {
+    const ids = collaborations.map(c => c.tournament_id)
+    const { data } = await supabase
+      .from('tournaments')
+      .select('*')
+      .in('id', ids)
+      .in('status', ['registration_open', 'in_progress'])
+    collaborativeTournaments = data || []
+  }
+  
+  const activeTournaments = [
+    ...(ownActiveTournaments || []).map(t => ({ ...t, isOwner: true })),
+    ...collaborativeTournaments.map(t => ({ ...t, isCollaborator: true }))
+  ].slice(0, 3)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -125,10 +148,10 @@ export default async function DashboardPage() {
                 <Trophy className="w-6 h-6 text-yellow-600" />
               </div>
               <span className="text-3xl font-bold text-gray-900">
-                {tournamentsCount || 0}
+                {totalTournamentsCount}
               </span>
             </div>
-            <p className="text-gray-600 text-sm">I tuoi tornei</p>
+            <p className="text-gray-600 text-sm">Tornei totali</p>
             <p className="text-yellow-600 text-sm mt-1">Gestisci →</p>
           </Link>
 
@@ -223,12 +246,12 @@ export default async function DashboardPage() {
 
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">I tuoi tornei attivi</h2>
+              <h2 className="text-lg font-semibold">Tornei attivi</h2>
               <Trophy className="w-5 h-5 text-gray-400" />
             </div>
             {activeTournaments && activeTournaments.length > 0 ? (
               <div className="space-y-3">
-                {activeTournaments.map((tournament) => (
+                {activeTournaments.map((tournament: any) => (
                   <Link 
                     key={tournament.id}
                     href={`/tournaments/${tournament.id}`}
@@ -241,13 +264,25 @@ export default async function DashboardPage() {
                           {tournament.sport} • {tournament.city}
                         </div>
                       </div>
-                      <span className={`text-xs px-2 py-1 rounded ${
-                        tournament.status === 'in_progress' 
-                          ? 'bg-green-100 text-green-700' 
-                          : 'bg-blue-100 text-blue-700'
-                      }`}>
-                        {tournament.status === 'in_progress' ? 'In corso' : 'Iscrizioni aperte'}
-                      </span>
+                      <div className="flex items-center space-x-2">
+                        {tournament.isOwner && (
+                          <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded">
+                            Owner
+                          </span>
+                        )}
+                        {tournament.isCollaborator && (
+                          <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded">
+                            Co-org
+                          </span>
+                        )}
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          tournament.status === 'in_progress' 
+                            ? 'bg-green-100 text-green-700' 
+                            : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {tournament.status === 'in_progress' ? 'In corso' : 'Iscrizioni'}
+                        </span>
+                      </div>
                     </div>
                   </Link>
                 ))}
