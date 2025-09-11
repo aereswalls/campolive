@@ -7,10 +7,10 @@ import { Calendar, MapPin, Check, X, RotateCcw } from 'lucide-react'
 
 export default function MatchList({ 
   matches, 
-  isOwner 
+  canManage 
 }: { 
   matches: any[]
-  isOwner: boolean 
+  canManage: boolean 
 }) {
   const router = useRouter()
   const supabase = createClient()
@@ -36,17 +36,62 @@ export default function MatchList({
       console.error('Errore aggiornamento risultato:', error)
       alert('Errore nell\'aggiornamento del risultato')
     } else {
+      // Aggiorna le statistiche delle squadre
+      await updateTeamStats(matchId, score.home, score.away)
+      
       // Resetta lo stato locale
       setScores(prev => {
         const newScores = {...prev}
         delete newScores[matchId]
         return newScores
       })
-      // Refresh per vedere i dati aggiornati
+      
       router.refresh()
     }
     
     setUpdatingMatch(null)
+  }
+  
+  const updateTeamStats = async (matchId: string, homeScore: number, awayScore: number) => {
+    const match = matches.find(m => m.id === matchId)
+    if (!match) return
+    
+    const supabase = createClient()
+    
+    // Determina il risultato
+    const homeWon = homeScore > awayScore
+    const draw = homeScore === awayScore
+    
+    // Aggiorna statistiche squadra casa
+    const homeStats = {
+      matches_played: 1,
+      matches_won: homeWon ? 1 : 0,
+      matches_drawn: draw ? 1 : 0,
+      matches_lost: !homeWon && !draw ? 1 : 0,
+      goals_for: homeScore,
+      goals_against: awayScore,
+      points: homeWon ? 3 : (draw ? 1 : 0)
+    }
+    
+    // Aggiorna statistiche squadra ospite
+    const awayStats = {
+      matches_played: 1,
+      matches_won: !homeWon && !draw ? 1 : 0,
+      matches_drawn: draw ? 1 : 0,
+      matches_lost: homeWon ? 1 : 0,
+      goals_for: awayScore,
+      goals_against: homeScore,
+      points: !homeWon && !draw ? 3 : (draw ? 1 : 0)
+    }
+    
+    // Aggiorna nel database
+    await supabase.rpc('update_team_stats', {
+      p_tournament_id: match.tournament_id,
+      p_home_team_id: match.home_team_id,
+      p_away_team_id: match.away_team_id,
+      p_home_stats: homeStats,
+      p_away_stats: awayStats
+    }).catch(err => console.error('Errore aggiornamento statistiche:', err))
   }
   
   const handleResetScore = async (matchId: string) => {
@@ -106,7 +151,7 @@ export default function MatchList({
                     <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded">
                       Completata
                     </span>
-                    {isOwner && (
+                    {canManage && (
                       <button
                         onClick={() => handleResetScore(match.id)}
                         className="p-1 text-gray-500 hover:text-red-600"
@@ -136,7 +181,7 @@ export default function MatchList({
                     <span className="text-gray-400">-</span>
                     <span className="text-2xl font-bold">{match.away_team_score}</span>
                   </div>
-                ) : isOwner ? (
+                ) : canManage ? (
                   isEditing ? (
                     <div className="flex items-center space-x-2">
                       <input

@@ -6,6 +6,7 @@ import MatchForm from '@/components/tournaments/MatchForm'
 import MatchList from '@/components/tournaments/MatchList'
 import MatchGenerator from '@/components/tournaments/MatchGenerator'
 import { Calendar, Plus, Wand2 } from 'lucide-react'
+import { checkTournamentPermissions } from '@/utils/tournament-permissions'
 
 export default async function TournamentMatchesPage({
   params
@@ -32,6 +33,17 @@ export default async function TournamentMatchesPage({
     .eq('id', params.id)
     .single()
   
+  if (!tournament) {
+    redirect('/tournaments')
+  }
+  
+  // Usa la funzione helper per verificare i permessi
+  const permissions = await checkTournamentPermissions(params.id, user.id)
+  
+  if (!permissions.canManage) {
+    redirect(`/tournaments/${params.id}`)
+  }
+  
   const { data: matches } = await supabase
     .from('tournament_matches')
     .select(`
@@ -42,11 +54,6 @@ export default async function TournamentMatchesPage({
     .eq('tournament_id', params.id)
     .order('match_date', { ascending: false })
   
-  if (!tournament) {
-    redirect('/tournaments')
-  }
-  
-  const isOwner = tournament.created_by === user.id
   const approvedTeams = tournament.tournament_teams?.filter((tt: any) => 
     tt.registration_status === 'approved'
   ).map((tt: any) => tt.team) || []
@@ -73,12 +80,18 @@ export default async function TournamentMatchesPage({
               <p className="text-sm text-gray-500 mt-1">
                 {approvedTeams.length} squadre partecipanti • {matches?.length || 0} partite programmate
               </p>
+              {!permissions.isOwner && (
+                <p className="text-xs text-blue-600 mt-2">
+                  Stai gestendo come co-organizzatore
+                </p>
+              )}
             </div>
             <Calendar className="w-8 h-8 text-blue-500" />
           </div>
         </div>
         
-        {isOwner && approvedTeams.length >= 2 && (
+        {/* Sia owner che collaboratori possono gestire le partite */}
+        {permissions.canManage && approvedTeams.length >= 2 && (
           <div className="grid md:grid-cols-2 gap-8 mb-8">
             {/* Creazione Manuale */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -107,7 +120,7 @@ export default async function TournamentMatchesPage({
           </div>
         )}
         
-        {approvedTeams.length < 2 && isOwner && (
+        {approvedTeams.length < 2 && permissions.canManage && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-8">
             <p className="text-yellow-800">
               Servono almeno 2 squadre approvate per creare partite. 
@@ -124,7 +137,10 @@ export default async function TournamentMatchesPage({
         
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-bold mb-4">Partite ({matches?.length || 0})</h2>
-          <MatchList matches={matches || []} isOwner={isOwner} />
+          <MatchList 
+            matches={matches || []} 
+            canManage={permissions.canManage}
+          />
         </div>
       </main>
     </div>
