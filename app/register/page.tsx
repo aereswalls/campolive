@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
+import { AlertCircle, Mail } from 'lucide-react'
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('')
@@ -11,6 +12,7 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [fullName, setFullName] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
@@ -19,7 +21,6 @@ export default function RegisterPage() {
     e.preventDefault()
     setError(null)
 
-    // Validazioni
     if (password !== confirmPassword) {
       setError('Le password non coincidono')
       return
@@ -32,14 +33,14 @@ export default function RegisterPage() {
 
     setLoading(true)
 
-    // Registra l'utente
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
           full_name: fullName,
-        }
+        },
+        emailRedirectTo: `${window.location.origin}/auth/confirm`
       }
     })
 
@@ -47,19 +48,41 @@ export default function RegisterPage() {
       setError(signUpError.message)
       setLoading(false)
     } else {
-      // Login automatico dopo registrazione
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      if (!signInError) {
-        router.push('/dashboard')
-      } else {
-        setError('Account creato. Accedi con le tue credenziali.')
-        router.push('/login')
-      }
+      setSuccess(true)
+      setLoading(false)
     }
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow text-center">
+          <div className="text-5xl mb-4">📧</div>
+          <h2 className="text-2xl font-bold text-green-600">
+            Controlla la tua email!
+          </h2>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-left">
+            <div className="flex items-start space-x-2">
+              <Mail className="w-5 h-5 text-green-600 mt-0.5" />
+              <div className="text-sm text-green-800">
+                <p className="font-medium mb-1">Email di conferma inviata</p>
+                <p>Abbiamo inviato un link di conferma a <strong>{email}</strong></p>
+                <p className="mt-2">Clicca sul link nell'email per attivare il tuo account.</p>
+              </div>
+            </div>
+          </div>
+          <div className="text-sm text-gray-600">
+            <p>Non hai ricevuto l'email?</p>
+            <button 
+              onClick={() => setSuccess(false)}
+              className="text-green-600 hover:text-green-700 font-medium"
+            >
+              Riprova la registrazione
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -79,8 +102,9 @@ export default function RegisterPage() {
         
         <form className="mt-8 space-y-6" onSubmit={handleRegister}>
           {error && (
-            <div className="bg-red-50 text-red-500 p-3 rounded">
-              {error}
+            <div className="bg-red-50 text-red-500 p-3 rounded flex items-start space-x-2">
+              <AlertCircle className="w-5 h-5 mt-0.5" />
+              <span>{error}</span>
             </div>
           )}
           
@@ -95,7 +119,7 @@ export default function RegisterPage() {
                 required
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-green-500 focus:border-green-500"
               />
             </div>
 
@@ -109,7 +133,7 @@ export default function RegisterPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-green-500 focus:border-green-500"
               />
             </div>
             
@@ -123,7 +147,7 @@ export default function RegisterPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-green-500 focus:border-green-500"
                 placeholder="Minimo 6 caratteri"
               />
             </div>
@@ -138,8 +162,18 @@ export default function RegisterPage() {
                 required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-green-500 focus:border-green-500"
               />
+            </div>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="flex items-start space-x-2">
+              <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
+              <div className="text-sm text-blue-800">
+                <p className="font-medium">Conferma richiesta</p>
+                <p>Dopo la registrazione riceverai un'email di conferma</p>
+              </div>
             </div>
           </div>
 

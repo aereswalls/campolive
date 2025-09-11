@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
 import Navbar from '@/components/Navbar'
-import { CreditCard, Calendar, Users, Video, TrendingUp, Activity, Trophy, Star } from 'lucide-react'
+import { CreditCard, Calendar, Users, Video, Trophy } from 'lucide-react'
 
 export default async function DashboardPage() {
   const supabase = createClient()
@@ -41,7 +41,7 @@ export default async function DashboardPage() {
     credits = newCredits
   }
 
-  // Statistiche
+  // Statistiche SOLO dell'utente corrente
   const { count: eventsCount } = await supabase
     .from('events')
     .select('*', { count: 'exact', head: true })
@@ -57,7 +57,7 @@ export default async function DashboardPage() {
     .select('*', { count: 'exact', head: true })
     .eq('created_by', user.id)
   
-  // Eventi recenti
+  // Eventi recenti SOLO dell'utente
   const { data: recentEvents } = await supabase
     .from('events')
     .select(`
@@ -69,10 +69,11 @@ export default async function DashboardPage() {
     .order('scheduled_at', { ascending: false })
     .limit(3)
   
-  // Tornei attivi
+  // Tornei SOLO creati dall'utente
   const { data: activeTournaments } = await supabase
     .from('tournaments')
     .select('*')
+    .eq('created_by', user.id)
     .in('status', ['registration_open', 'in_progress'])
     .order('created_at', { ascending: false })
     .limit(3)
@@ -82,17 +83,15 @@ export default async function DashboardPage() {
       <Navbar userEmail={user.email} />
 
       <main className="container mx-auto px-4 py-8 max-w-7xl">
-        {/* Welcome Section */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Benvenuto {profile?.full_name || 'su CampoLive'}!
           </h1>
           <p className="text-gray-600">
-            Ecco un riepilogo della tua attività sportiva
+            Gestisci i tuoi eventi e tornei sportivi
           </p>
         </div>
 
-        {/* Stats Grid */}
         <div className="grid md:grid-cols-4 gap-4 mb-8">
           <Link href="/credits" className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition">
             <div className="flex items-center justify-between mb-4">
@@ -116,7 +115,7 @@ export default async function DashboardPage() {
                 {eventsCount || 0}
               </span>
             </div>
-            <p className="text-gray-600 text-sm">Eventi creati</p>
+            <p className="text-gray-600 text-sm">I tuoi eventi</p>
             <p className="text-blue-600 text-sm mt-1">Vedi tutti →</p>
           </Link>
 
@@ -129,7 +128,7 @@ export default async function DashboardPage() {
                 {tournamentsCount || 0}
               </span>
             </div>
-            <p className="text-gray-600 text-sm">Tornei organizzati</p>
+            <p className="text-gray-600 text-sm">I tuoi tornei</p>
             <p className="text-yellow-600 text-sm mt-1">Gestisci →</p>
           </Link>
 
@@ -147,7 +146,6 @@ export default async function DashboardPage() {
           </Link>
         </div>
 
-        {/* Quick Actions */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
           <h2 className="text-lg font-semibold mb-4">Azioni rapide</h2>
           <div className="grid md:grid-cols-5 gap-4">
@@ -190,10 +188,9 @@ export default async function DashboardPage() {
         </div>
 
         <div className="grid md:grid-cols-2 gap-8">
-          {/* Recent Events */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Prossimi Eventi</h2>
+              <h2 className="text-lg font-semibold">I tuoi prossimi eventi</h2>
               <Calendar className="w-5 h-5 text-gray-400" />
             </div>
             {recentEvents && recentEvents.length > 0 ? (
@@ -224,10 +221,9 @@ export default async function DashboardPage() {
             )}
           </div>
 
-          {/* Active Tournaments */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Tornei Attivi</h2>
+              <h2 className="text-lg font-semibold">I tuoi tornei attivi</h2>
               <Trophy className="w-5 h-5 text-gray-400" />
             </div>
             {activeTournaments && activeTournaments.length > 0 ? (
