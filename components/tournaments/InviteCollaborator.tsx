@@ -1,174 +1,159 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/utils/supabase/client'
-import { UserPlus, Mail, X } from 'lucide-react'
+import { UserPlus, Mail, Loader2, Check, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
-export default function InviteCollaborator({ 
-  tournamentId,
-  existingCollaborators = []
-}: { 
+interface InviteCollaboratorProps {
   tournamentId: string
-  existingCollaborators: any[]
-}) {
+  existingCollaborators?: any[]
+}
+
+export default function InviteCollaborator({ 
+  tournamentId, 
+  existingCollaborators = [] 
+}: InviteCollaboratorProps) {
   const [email, setEmail] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
-  const supabase = createClient()
+  const [role, setRole] = useState('co_organizer')
+  const [isLoading, setIsLoading] = useState(false)
+  const [message, setMessage] = useState<{
+    type: 'success' | 'error' | 'info'
+    text: string
+  } | null>(null)
   const router = useRouter()
-  
+
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
-    setError(null)
-    setSuccess(false)
-    
+    setIsLoading(true)
+    setMessage(null)
+
     try {
-      // Prima cerca l'utente in auth.users tramite una funzione RPC
-      // O cerca direttamente in user_profiles se l'email è presente
-      const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('id, email')
-        .eq('email', email.trim().toLowerCase())
-        .single()
-      
-      if (profileError || !profile) {
-        // Se non trovato in user_profiles, proviamo un approccio diverso
-        // Cerchiamo per ID se l'utente esiste
-        setError('Utente non trovato. Verifica che l\'email sia corretta e che l\'utente sia registrato.')
-        setLoading(false)
-        return
-      }
-      
-      // Verifica se è già collaboratore
-      const existing = existingCollaborators.find(c => c.user_id === profile.id)
-      if (existing) {
-        setError('Questo utente è già un co-organizzatore del torneo.')
-        setLoading(false)
-        return
-      }
-      
-      // Ottieni l'utente corrente
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
-        setError('Devi essere autenticato per invitare co-organizzatori')
-        setLoading(false)
-        return
-      }
-      
-      // Invia invito
-      const { error: inviteError } = await supabase
-        .from('tournament_collaborators')
-        .insert({
-          tournament_id: tournamentId,
-          user_id: profile.id,
-          invited_by: user.id,
-          role: 'co_organizer',
-          status: 'accepted' // Auto-accetta per semplicità
+      const response = await fetch(`/api/tournaments/${tournamentId}/collaborators/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: email.trim().toLowerCase(), 
+          role 
         })
-      
-      if (inviteError) {
-        console.error('Errore invito:', inviteError)
-        setError('Errore durante l\'invito. Riprova.')
-        setLoading(false)
-        return
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Errore durante l\'invito')
       }
-      
-      setSuccess(true)
+
+      setMessage({
+        type: 'success',
+        text: data.message || 'Invito inviato con successo!'
+      })
       setEmail('')
+      
       setTimeout(() => {
-        setSuccess(false)
         router.refresh()
+        setMessage(null)
       }, 2000)
       
-    } catch (err: any) {
-      console.error('Errore:', err)
-      setError('Si è verificato un errore. Riprova.')
+    } catch (error: any) {
+      console.error('Errore invito:', error)
+      setMessage({
+        type: 'error',
+        text: error.message || 'Errore durante l\'invito. Riprova.'
+      })
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
-  
-  const handleRemove = async (collaboratorId: string) => {
-    if (!confirm('Rimuovere questo co-organizzatore?')) return
-    
-    try {
-      const { error } = await supabase
-        .from('tournament_collaborators')
-        .delete()
-        .eq('id', collaboratorId)
-      
-      if (!error) {
-        router.refresh()
-      }
-    } catch (err) {
-      console.error('Errore rimozione:', err)
-    }
-  }
-  
+
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2">
-        <UserPlus className="w-5 h-5 text-gray-600" />
-        <span>Co-organizzatori</span>
+    <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <h3 className="font-semibold mb-4 flex items-center space-x-2">
+        <UserPlus className="w-5 h-5" />
+        <span>Invita Co-organizzatore</span>
       </h3>
-      
-      <form onSubmit={handleInvite} className="mb-4">
-        <div className="flex space-x-2">
-          <div className="flex-1">
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="email@esempio.it"
-              required
-              disabled={loading}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading || !email}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center space-x-2"
-          >
-            <Mail className="w-4 h-4" />
-            <span>{loading ? 'Invio...' : 'Invita'}</span>
-          </button>
+
+      <form onSubmit={handleInvite} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            Email del co-organizzatore
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="esempio@email.com"
+            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+            required
+            disabled={isLoading}
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            L'utente potrà accedere al torneo dopo essersi registrato con questa email
+          </p>
         </div>
-        
-        {error && (
-          <p className="text-red-600 text-sm mt-2">{error}</p>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Ruolo</label>
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            className="w-full px-3 py-2 border rounded-lg"
+            disabled={isLoading}
+          >
+            <option value="co_organizer">Co-organizzatore</option>
+            <option value="assistant">Assistente</option>
+          </select>
+        </div>
+
+        {message && (
+          <div className={`p-3 rounded-lg flex items-center space-x-2 ${
+            message.type === 'success' ? 'bg-green-50 text-green-700' :
+            message.type === 'error' ? 'bg-red-50 text-red-700' :
+            'bg-blue-50 text-blue-700'
+          }`}>
+            {message.type === 'success' && <Check className="w-4 h-4" />}
+            {message.type === 'error' && <X className="w-4 h-4" />}
+            <span className="text-sm">{message.text}</span>
+          </div>
         )}
-        
-        {success && (
-          <p className="text-green-600 text-sm mt-2">Co-organizzatore aggiunto con successo!</p>
-        )}
-        
-        <p className="text-xs text-gray-500 mt-2">
-          Nota: L'utente deve essere registrato su CampoLive con questa email.
-        </p>
+
+        <button
+          type="submit"
+          disabled={isLoading || !email}
+          className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center space-x-2"
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Invio in corso...</span>
+            </>
+          ) : (
+            <>
+              <Mail className="w-4 h-4" />
+              <span>Invia Invito</span>
+            </>
+          )}
+        </button>
       </form>
-      
-      {existingCollaborators.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-sm text-gray-600 mb-2">Co-organizzatori attuali:</p>
-          {existingCollaborators.map((collab) => (
-            <div key={collab.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-              <span className="text-sm">
-                {collab.user_profiles?.email || collab.user_profiles?.full_name || 'Co-organizzatore'}
-              </span>
-              <button
-                onClick={() => handleRemove(collab.id)}
-                className="text-red-600 hover:text-red-700 p-1"
-                title="Rimuovi"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
+
+      {existingCollaborators && existingCollaborators.length > 0 && (
+        <div className="mt-6 pt-6 border-t">
+          <h4 className="text-sm font-medium mb-3">Co-organizzatori attuali</h4>
+          <div className="space-y-2">
+            {existingCollaborators.map((collab) => (
+              <div key={collab.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                <span className="text-sm">
+                  {collab.invited_email || collab.user_profiles?.email || 'Email non disponibile'}
+                </span>
+                <span className={`text-xs px-2 py-1 rounded ${
+                  collab.status === 'accepted' 
+                    ? 'bg-green-100 text-green-700' 
+                    : 'bg-yellow-100 text-yellow-700'
+                }`}>
+                  {collab.status === 'accepted' ? 'Attivo' : 'In attesa'}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
