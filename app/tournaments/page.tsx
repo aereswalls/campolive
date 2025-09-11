@@ -19,7 +19,7 @@ export default async function TournamentsPage() {
     .select('*')
     .eq('created_by', user.id)
   
-  // Query 2: Tornei dove sono collaboratore
+  // Query 2: Tornei dove sono collaboratore accettato
   const { data: collaborations } = await supabase
     .from('tournament_collaborators')
     .select('tournament_id')
@@ -36,11 +36,20 @@ export default async function TournamentsPage() {
     collaborativeTournaments = data || []
   }
   
-  // Combina i risultati
-  const allTournaments = [
-    ...(ownTournaments || []).map(t => ({ ...t, isOwner: true })),
-    ...collaborativeTournaments.map(t => ({ ...t, isCollaborator: true }))
-  ]
+  // Combina i risultati evitando duplicati
+  const tournamentMap = new Map()
+  
+  ownTournaments?.forEach(t => {
+    tournamentMap.set(t.id, { ...t, isOwner: true, isCollaborator: false })
+  })
+  
+  collaborativeTournaments.forEach(t => {
+    if (!tournamentMap.has(t.id)) {
+      tournamentMap.set(t.id, { ...t, isOwner: false, isCollaborator: true })
+    }
+  })
+  
+  const allTournaments = Array.from(tournamentMap.values())
   
   const getStatusLabel = (status: string) => {
     switch(status) {
