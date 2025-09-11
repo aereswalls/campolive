@@ -2,7 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Navbar from '@/components/Navbar'
-import { Trophy, Calendar, MapPin, Users, Plus } from 'lucide-react'
+import { Trophy, Calendar, MapPin, Users, Plus, Crown, UserCheck } from 'lucide-react'
 
 export default async function TournamentsPage() {
   const supabase = createClient()
@@ -13,11 +13,31 @@ export default async function TournamentsPage() {
     redirect('/login')
   }
   
-  const { data: tournaments } = await supabase
+  // Recupera tornei dove l'utente è owner
+  const { data: ownTournaments } = await supabase
     .from('tournaments')
     .select('*')
     .eq('created_by', user.id)
     .order('created_at', { ascending: false })
+  
+  // Recupera tornei dove l'utente è co-organizzatore
+  const { data: collaborations } = await supabase
+    .from('tournament_collaborators')
+    .select(`
+      tournament:tournaments(*)
+    `)
+    .eq('user_id', user.id)
+    .eq('status', 'accepted')
+  
+  const collaborativeTournaments = collaborations?.map(c => ({
+    ...c.tournament,
+    isCollaborator: true
+  })) || []
+  
+  const allTournaments = [
+    ...(ownTournaments || []).map(t => ({ ...t, isOwner: true })),
+    ...collaborativeTournaments
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   
   const getStatusLabel = (status: string) => {
     switch(status) {
@@ -60,14 +80,29 @@ export default async function TournamentsPage() {
           </Link>
         </div>
         
-        {tournaments && tournaments.length > 0 ? (
+        {allTournaments && allTournaments.length > 0 ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {tournaments.map((tournament) => (
+            {allTournaments.map((tournament: any) => (
               <Link
                 key={tournament.id}
                 href={`/tournaments/${tournament.id}`}
-                className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition"
+                className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition relative"
               >
+                {/* Badge ruolo */}
+                <div className="absolute top-4 right-4">
+                  {tournament.isOwner ? (
+                    <span className="flex items-center space-x-1 text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">
+                      <Crown className="w-3 h-3" />
+                      <span>Owner</span>
+                    </span>
+                  ) : tournament.isCollaborator ? (
+                    <span className="flex items-center space-x-1 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                      <UserCheck className="w-3 h-3" />
+                      <span>Co-org</span>
+                    </span>
+                  ) : null}
+                </div>
+                
                 <div className="flex justify-between items-start mb-4">
                   <Trophy className="w-8 h-8 text-yellow-500" />
                   <span className={`px-2 py-1 rounded text-xs ${getStatusColor(tournament.status)}`}>
@@ -109,9 +144,9 @@ export default async function TournamentsPage() {
         ) : (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
             <Trophy className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <h2 className="text-xl font-semibold mb-2">Nessun torneo creato</h2>
+            <h2 className="text-xl font-semibold mb-2">Nessun torneo</h2>
             <p className="text-gray-600 mb-6">
-              Inizia organizzando il tuo primo torneo sportivo
+              Crea il tuo primo torneo o attendi di essere invitato come co-organizzatore
             </p>
             <Link 
               href="/tournaments/new"

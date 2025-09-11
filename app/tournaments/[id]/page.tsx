@@ -144,6 +144,14 @@ export default async function TournamentDetailPage({ params }: PageProps) {
                   <Users className="w-4 h-4" />
                   <span>Gestisci Squadre</span>
                 </Link>
+              )}
+              {isOwner && (
+                <Link
+                  href={`/tournaments/${params.id}/collaborators`}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center space-x-2"
+                >
+                  <Users className="w-4 h-4" />
+                  <span>Co-organizzatori</span>                </Link>
               </>
             )}
           </div>
