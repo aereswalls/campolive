@@ -20,23 +20,28 @@ export default async function TournamentsPage() {
     .eq('created_by', user.id)
     .order('created_at', { ascending: false })
   
-  // Recupera tornei dove l'utente è co-organizzatore
+  // Recupera IDs dei tornei dove l'utente è co-organizzatore
   const { data: collaborations } = await supabase
     .from('tournament_collaborators')
-    .select(`
-      tournament:tournaments(*)
-    `)
+    .select('tournament_id')
     .eq('user_id', user.id)
     .eq('status', 'accepted')
   
-  const collaborativeTournaments = collaborations?.map(c => ({
-    ...c.tournament,
-    isCollaborator: true
-  })) || []
+  const collaboratorTournamentIds = collaborations?.map(c => c.tournament_id) || []
+  
+  // Se ci sono collaborazioni, recupera i dettagli dei tornei
+  let collaborativeTournaments = []
+  if (collaboratorTournamentIds.length > 0) {
+    const { data } = await supabase
+      .from('tournaments')
+      .select('*')
+      .in('id', collaboratorTournamentIds)
+    collaborativeTournaments = data || []
+  }
   
   const allTournaments = [
     ...(ownTournaments || []).map(t => ({ ...t, isOwner: true })),
-    ...collaborativeTournaments
+    ...collaborativeTournaments.map(t => ({ ...t, isCollaborator: true }))
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   
   const getStatusLabel = (status: string) => {
@@ -69,7 +74,7 @@ export default async function TournamentsPage() {
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">I Miei Tornei</h1>
-            <p className="text-gray-600 mt-1">Gestisci i tuoi tornei sportivi</p>
+            <p className="text-gray-600 mt-1">Tornei che organizzi o co-organizzi</p>
           </div>
           <Link 
             href="/tournaments/new"
