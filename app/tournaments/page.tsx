@@ -13,25 +13,34 @@ export default async function TournamentsPage() {
     redirect('/login')
   }
   
-  // Query unificata: recupera tutti i tornei accessibili (owner o collaboratore)
-  const { data: allTournaments, error } = await supabase
+  // Query 1: Tornei dove sono owner
+  const { data: ownTournaments } = await supabase
     .from('tournaments')
-    .select(`
-      *,
-      tournament_collaborators!inner (
-        user_id,
-        status
-      )
-    `)
-    .or(`created_by.eq.${user.id},tournament_collaborators.user_id.eq.${user.id}`)
-    .order('created_at', { ascending: false })
+    .select('*')
+    .eq('created_by', user.id)
   
-  // Determina il ruolo per ogni torneo
-  const tournamentsWithRole = allTournaments?.map(tournament => ({
-    ...tournament,
-    isOwner: tournament.created_by === user.id,
-    isCollaborator: tournament.created_by !== user.id
-  })) || []
+  // Query 2: Tornei dove sono collaboratore
+  const { data: collaborations } = await supabase
+    .from('tournament_collaborators')
+    .select('tournament_id')
+    .eq('user_id', user.id)
+    .eq('status', 'accepted')
+  
+  let collaborativeTournaments = []
+  if (collaborations && collaborations.length > 0) {
+    const ids = collaborations.map(c => c.tournament_id)
+    const { data } = await supabase
+      .from('tournaments')
+      .select('*')
+      .in('id', ids)
+    collaborativeTournaments = data || []
+  }
+  
+  // Combina i risultati
+  const allTournaments = [
+    ...(ownTournaments || []).map(t => ({ ...t, isOwner: true })),
+    ...collaborativeTournaments.map(t => ({ ...t, isCollaborator: true }))
+  ]
   
   const getStatusLabel = (status: string) => {
     switch(status) {
@@ -74,15 +83,9 @@ export default async function TournamentsPage() {
           </Link>
         </div>
         
-        {error && (
-          <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-4">
-            Errore nel caricamento dei tornei: {error.message}
-          </div>
-        )}
-        
-        {tournamentsWithRole && tournamentsWithRole.length > 0 ? (
+        {allTournaments && allTournaments.length > 0 ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {tournamentsWithRole.map((tournament: any) => (
+            {allTournaments.map((tournament: any) => (
               <Link
                 key={tournament.id}
                 href={`/tournaments/${tournament.id}`}
@@ -94,12 +97,12 @@ export default async function TournamentsPage() {
                       <Crown className="w-3 h-3" />
                       <span>Owner</span>
                     </span>
-                  ) : (
+                  ) : tournament.isCollaborator ? (
                     <span className="flex items-center space-x-1 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
                       <UserCheck className="w-3 h-3" />
                       <span>Co-org</span>
                     </span>
-                  )}
+                  ) : null}
                 </div>
                 
                 <div className="flex justify-between items-start mb-4">
