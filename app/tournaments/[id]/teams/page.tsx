@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import { Users, Trash2, CheckCircle, XCircle, Plus } from 'lucide-react'
+import { checkTournamentPermissions } from '@/utils/tournament-permissions'
 
 interface PageProps {
   params: {
@@ -30,20 +31,10 @@ export default async function TournamentTeamsPage({ params }: PageProps) {
     redirect('/tournaments')
   }
   
-  const isOwner = tournament.created_by === user.id
+  // Verifica permessi usando helper
+  const permissions = await checkTournamentPermissions(params.id, user.id)
   
-  // Check if user is collaborator
-  const { data: collaboration } = await supabase
-    .from('tournament_collaborators')
-    .select('*')
-    .eq('tournament_id', params.id)
-    .eq('user_id', user.id)
-    .eq('status', 'accepted')
-    .single()
-  
-  const canManage = isOwner || !!collaboration
-  
-  if (!canManage) {
+  if (!permissions.canManage) {
     redirect(`/tournaments/${params.id}`)
   }
   
@@ -79,6 +70,11 @@ export default async function TournamentTeamsPage({ params }: PageProps) {
               <p className="text-sm text-gray-500 mt-2">
                 {tournamentTeams?.length || 0} di {tournament.max_teams} squadre iscritte
               </p>
+              {!permissions.isOwner && (
+                <p className="text-xs text-blue-600 mt-2">
+                  Stai gestendo come co-organizzatore
+                </p>
+              )}
             </div>
             <Link
               href={`/tournaments/${params.id}/teams/add`}
@@ -155,7 +151,7 @@ export default async function TournamentTeamsPage({ params }: PageProps) {
                     </div>
                   </div>
                   
-                  {canManage && (
+                  {permissions.canManage && (
                     <button className="text-red-600 hover:text-red-700 p-2">
                       <Trash2 className="w-4 h-4" />
                     </button>

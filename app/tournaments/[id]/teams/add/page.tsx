@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import AddTeamToTournament from '@/components/tournaments/AddTeamToTournament'
 import { Plus, Users } from 'lucide-react'
+import { checkTournamentPermissions } from '@/utils/tournament-permissions'
 
 interface PageProps {
   params: {
@@ -20,14 +21,20 @@ export default async function AddTeamToTournamentPage({ params }: PageProps) {
     redirect('/login')
   }
   
-  // Verifica che il torneo esista e l'utente sia il creatore
   const { data: tournament } = await supabase
     .from('tournaments')
     .select('*')
     .eq('id', params.id)
     .single()
   
-  if (!tournament || tournament.created_by !== user.id) {
+  if (!tournament) {
+    redirect('/tournaments')
+  }
+  
+  // Verifica permessi - sia owner che collaboratori possono aggiungere squadre
+  const permissions = await checkTournamentPermissions(params.id, user.id)
+  
+  if (!permissions.canManage) {
     redirect(`/tournaments/${params.id}`)
   }
   
@@ -69,6 +76,11 @@ export default async function AddTeamToTournamentPage({ params }: PageProps) {
             <div>
               <h1 className="text-3xl font-bold mb-2">Aggiungi Squadre</h1>
               <p className="text-gray-600">{tournament.name}</p>
+              {!permissions.isOwner && (
+                <p className="text-xs text-blue-600 mt-2">
+                  Stai aggiungendo squadre come co-organizzatore
+                </p>
+              )}
             </div>
             <Users className="w-8 h-8 text-blue-500" />
           </div>
