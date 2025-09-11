@@ -12,6 +12,7 @@ export default function TeamForm({ userId }: { userId: string }) {
   
   const [formData, setFormData] = useState({
     name: '',
+    slug: '',
     description: '',
     sport_type: 'calcio',
     city: '',
@@ -20,16 +21,34 @@ export default function TeamForm({ userId }: { userId: string }) {
     secondary_color: '#065F46'
   })
   
+  // Genera slug automaticamente dal nome
+  const generateSlug = (name: string) => {
+    return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  }
+  
+  const handleNameChange = (name: string) => {
+    setFormData({
+      ...formData,
+      name,
+      slug: generateSlug(name)
+    })
+  }
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
     
     try {
-      // Crea il team
+      // Crea il team con lo slug
+      const teamData = {
+        ...formData,
+        slug: formData.slug || generateSlug(formData.name)
+      }
+      
       const { data: team, error: teamError } = await supabase
         .from('teams')
-        .insert(formData)
+        .insert(teamData)
         .select()
         .single()
       
@@ -71,10 +90,13 @@ export default function TeamForm({ userId }: { userId: string }) {
           type="text"
           required
           value={formData.name}
-          onChange={(e) => setFormData({...formData, name: e.target.value})}
+          onChange={(e) => handleNameChange(e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
           placeholder="es. ASD Napoli United"
         />
+        <p className="text-xs text-gray-500 mt-1">
+          URL: /teams/{formData.slug || 'nome-team'}
+        </p>
       </div>
       
       <div>
