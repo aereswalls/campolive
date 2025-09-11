@@ -4,7 +4,8 @@ import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import MatchForm from '@/components/tournaments/MatchForm'
 import MatchList from '@/components/tournaments/MatchList'
-import { Calendar, Plus } from 'lucide-react'
+import MatchGenerator from '@/components/tournaments/MatchGenerator'
+import { Calendar, Plus, Wand2 } from 'lucide-react'
 
 export default async function TournamentMatchesPage({
   params
@@ -46,6 +47,9 @@ export default async function TournamentMatchesPage({
   }
   
   const isOwner = tournament.created_by === user.id
+  const approvedTeams = tournament.tournament_teams?.filter((tt: any) => 
+    tt.registration_status === 'approved'
+  ).map((tt: any) => tt.team) || []
   
   return (
     <div className="min-h-screen bg-gray-50">
@@ -66,18 +70,55 @@ export default async function TournamentMatchesPage({
             <div>
               <h1 className="text-3xl font-bold mb-2">Calendario Partite</h1>
               <p className="text-gray-600">{tournament.name}</p>
+              <p className="text-sm text-gray-500 mt-1">
+                {approvedTeams.length} squadre partecipanti • {matches?.length || 0} partite programmate
+              </p>
             </div>
             <Calendar className="w-8 h-8 text-blue-500" />
           </div>
         </div>
         
-        {isOwner && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
-            <h2 className="text-xl font-bold mb-4">Aggiungi Partita</h2>
-            <MatchForm 
-              tournamentId={params.id} 
-              teams={tournament.tournament_teams?.filter((tt: any) => tt.registration_status === 'approved').map((tt: any) => tt.team) || []}
-            />
+        {isOwner && approvedTeams.length >= 2 && (
+          <div className="grid md:grid-cols-2 gap-8 mb-8">
+            {/* Creazione Manuale */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center space-x-2 mb-4">
+                <Plus className="w-5 h-5 text-green-600" />
+                <h2 className="text-xl font-bold">Aggiungi Partita Manualmente</h2>
+              </div>
+              <MatchForm 
+                tournamentId={params.id} 
+                teams={approvedTeams}
+              />
+            </div>
+            
+            {/* Generazione Automatica */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center space-x-2 mb-4">
+                <Wand2 className="w-5 h-5 text-purple-600" />
+                <h2 className="text-xl font-bold">Genera Calendario Automatico</h2>
+              </div>
+              <MatchGenerator
+                tournamentId={params.id}
+                teams={approvedTeams}
+                existingMatches={matches || []}
+              />
+            </div>
+          </div>
+        )}
+        
+        {approvedTeams.length < 2 && isOwner && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-8">
+            <p className="text-yellow-800">
+              Servono almeno 2 squadre approvate per creare partite. 
+              Attualmente hai {approvedTeams.length} squadra/e.
+            </p>
+            <Link 
+              href={`/tournaments/${params.id}/teams/add`}
+              className="inline-block mt-3 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700"
+            >
+              Aggiungi Squadre
+            </Link>
           </div>
         )}
         

@@ -2,7 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Navbar from '@/components/Navbar'
-import { Trophy } from 'lucide-react'
+import { Trophy, Users, AlertCircle } from 'lucide-react'
 
 interface PageProps {
   params: {
@@ -33,6 +33,7 @@ export default async function TournamentStandingsPage({ params }: PageProps) {
     redirect('/tournaments')
   }
   
+  // Recupera TUTTE le squadre registrate al torneo (anche quelle senza partite)
   const { data: standings } = await supabase
     .from('tournament_teams')
     .select(`
@@ -40,6 +41,7 @@ export default async function TournamentStandingsPage({ params }: PageProps) {
       team:teams (*)
     `)
     .eq('tournament_id', params.id)
+    .eq('registration_status', 'approved') // Solo squadre approvate
     .order('points', { ascending: false })
     .order('goals_for', { ascending: false })
   
@@ -68,9 +70,22 @@ export default async function TournamentStandingsPage({ params }: PageProps) {
               <p className="text-gray-600">
                 Formato: {tournament.format?.replace(/_/g, ' ') || 'Campionato'}
               </p>
+              <p className="text-sm text-gray-500 mt-1">
+                {standings?.length || 0} squadre partecipanti
+              </p>
             </div>
             <Trophy className="w-12 h-12 text-yellow-500" />
           </div>
+          
+          {tournament.status === 'draft' && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start space-x-2">
+              <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-yellow-800">
+                <p className="font-medium">Torneo in bozza</p>
+                <p>La classifica sarà attiva quando il torneo inizierà.</p>
+              </div>
+            </div>
+          )}
         </div>
         
         {standings && standings.length > 0 ? (
@@ -113,11 +128,20 @@ export default async function TournamentStandingsPage({ params }: PageProps) {
               <tbody className="bg-white divide-y divide-gray-200">
                 {standings.map((team: any, index: number) => {
                   const diff = getGoalDifference(team)
+                  const hasPlayed = team.matches_played > 0
+                  
                   return (
-                    <tr key={team.id} className={index < 3 ? 'bg-green-50' : ''}>
+                    <tr 
+                      key={team.id} 
+                      className={`
+                        ${index < 3 && hasPlayed ? 'bg-green-50' : ''}
+                        ${!hasPlayed ? 'opacity-60' : ''}
+                      `}
+                    >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <span className={`font-bold ${
+                            !hasPlayed ? 'text-gray-400' :
                             index === 0 ? 'text-yellow-500' : 
                             index === 1 ? 'text-gray-400' : 
                             index === 2 ? 'text-orange-600' : 
@@ -125,7 +149,7 @@ export default async function TournamentStandingsPage({ params }: PageProps) {
                           }`}>
                             {index + 1}
                           </span>
-                          {index < 3 && (
+                          {index < 3 && hasPlayed && (
                             <Trophy className={`w-4 h-4 ml-1 ${
                               index === 0 ? 'text-yellow-500' : 
                               index === 1 ? 'text-gray-400' : 
@@ -179,17 +203,30 @@ export default async function TournamentStandingsPage({ params }: PageProps) {
                 })}
               </tbody>
             </table>
+            
+            <div className="bg-gray-50 px-6 py-3 border-t">
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <div className="flex items-center space-x-2">
+                  <Users className="w-4 h-4" />
+                  <span>{standings.length} squadre iscritte</span>
+                </div>
+                <div>
+                  Ultima modifica: {new Date().toLocaleDateString('it-IT')}
+                </div>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12">
             <div className="text-center text-gray-500">
               <Trophy className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-              <p>Nessuna squadra registrata ancora</p>
+              <p className="mb-2">Nessuna squadra registrata</p>
+              <p className="text-sm mb-4">Aggiungi squadre al torneo per vedere la classifica</p>
               <Link 
-                href={`/tournaments/${params.id}`}
-                className="text-sm text-blue-600 hover:text-blue-700 mt-2 inline-block"
+                href={`/tournaments/${params.id}/teams/add`}
+                className="inline-block px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
               >
-                Torna al torneo
+                Aggiungi Squadre
               </Link>
             </div>
           </div>
