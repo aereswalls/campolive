@@ -1,8 +1,8 @@
 import { createClient } from '@/utils/supabase/server'
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import Navbar from '@/components/Navbar'
-import { Trophy, Plus, Calendar, Users } from 'lucide-react'
+import { Trophy, Calendar, MapPin, Users, Plus } from 'lucide-react'
 
 export default async function TournamentsPage() {
   const supabase = createClient()
@@ -16,7 +16,30 @@ export default async function TournamentsPage() {
   const { data: tournaments } = await supabase
     .from('tournaments')
     .select('*')
+    .eq('created_by', user.id)
     .order('created_at', { ascending: false })
+  
+  const getStatusLabel = (status: string) => {
+    switch(status) {
+      case 'draft': return 'Bozza'
+      case 'registration_open': return 'Iscrizioni Aperte'
+      case 'in_progress': return 'In Corso'
+      case 'completed': return 'Completato'
+      case 'cancelled': return 'Cancellato'
+      default: return status
+    }
+  }
+  
+  const getStatusColor = (status: string) => {
+    switch(status) {
+      case 'draft': return 'bg-gray-100 text-gray-700'
+      case 'registration_open': return 'bg-blue-100 text-blue-700'
+      case 'in_progress': return 'bg-green-100 text-green-700'
+      case 'completed': return 'bg-purple-100 text-purple-700'
+      case 'cancelled': return 'bg-red-100 text-red-700'
+      default: return 'bg-gray-100 text-gray-700'
+    }
+  }
   
   return (
     <div className="min-h-screen bg-gray-50">
@@ -25,40 +48,79 @@ export default async function TournamentsPage() {
       <main className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Tornei</h1>
-            <p className="text-gray-600 mt-1">Organizza e partecipa a tornei sportivi</p>
+            <h1 className="text-3xl font-bold text-gray-900">I Miei Tornei</h1>
+            <p className="text-gray-600 mt-1">Gestisci i tuoi tornei sportivi</p>
           </div>
           <Link 
-            href="/tournaments/new" 
-            className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-medium flex items-center space-x-2"
+            href="/tournaments/new"
+            className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 flex items-center space-x-2"
           >
             <Plus className="w-5 h-5" />
-            <span>Crea Torneo</span>
+            <span>Nuovo Torneo</span>
           </Link>
         </div>
         
-        <div className="grid md:grid-cols-3 gap-6">
-          {tournaments?.map((tournament) => (
-            <Link
-              key={tournament.id}
-              href={`/tournaments/${tournament.id}`}
-              className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition"
+        {tournaments && tournaments.length > 0 ? (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {tournaments.map((tournament) => (
+              <Link
+                key={tournament.id}
+                href={`/tournaments/${tournament.id}`}
+                className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition"
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <Trophy className="w-8 h-8 text-yellow-500" />
+                  <span className={`px-2 py-1 rounded text-xs ${getStatusColor(tournament.status)}`}>
+                    {getStatusLabel(tournament.status)}
+                  </span>
+                </div>
+                
+                <h3 className="text-lg font-semibold mb-2">{tournament.name}</h3>
+                
+                <div className="space-y-2 text-sm text-gray-600">
+                  <div className="flex items-center space-x-2">
+                    <Calendar className="w-4 h-4" />
+                    <span>
+                      {tournament.start_date 
+                        ? new Date(tournament.start_date).toLocaleDateString('it-IT')
+                        : 'Data da definire'}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <MapPin className="w-4 h-4" />
+                    <span>{tournament.city || 'Località da definire'}</span>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Users className="w-4 h-4" />
+                    <span>{tournament.max_teams || 16} squadre max</span>
+                  </div>
+                </div>
+                
+                <div className="mt-4 pt-4 border-t">
+                  <span className="text-xs text-gray-500">
+                    Sport: {tournament.sport?.replace(/_/g, ' ')}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+            <Trophy className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+            <h2 className="text-xl font-semibold mb-2">Nessun torneo creato</h2>
+            <p className="text-gray-600 mb-6">
+              Inizia organizzando il tuo primo torneo sportivo
+            </p>
+            <Link 
+              href="/tournaments/new"
+              className="inline-block bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700"
             >
-              <div className="flex items-center justify-between mb-4">
-                <Trophy className="w-8 h-8 text-yellow-500" />
-                <span className="text-sm px-2 py-1 bg-gray-100 rounded">
-                  {tournament.sport}
-                </span>
-              </div>
-              <h3 className="text-xl font-bold mb-2">{tournament.name}</h3>
-              <p className="text-gray-600 text-sm mb-4">{tournament.description}</p>
-              <div className="flex justify-between text-sm text-gray-500">
-                <span>{tournament.city}</span>
-                <span>{tournament.status}</span>
-              </div>
+              Crea il tuo primo torneo
             </Link>
-          ))}
-        </div>
+          </div>
+        )}
       </main>
     </div>
   )
