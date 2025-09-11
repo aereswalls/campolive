@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
 import Navbar from '@/components/Navbar'
-import { CreditCard, Calendar, Users, Video, TrendingUp, Activity } from 'lucide-react'
+import { CreditCard, Calendar, Users, Video, TrendingUp, Activity, Trophy, Star } from 'lucide-react'
 
 export default async function DashboardPage() {
   const supabase = createClient()
@@ -41,6 +41,7 @@ export default async function DashboardPage() {
     credits = newCredits
   }
 
+  // Statistiche
   const { count: eventsCount } = await supabase
     .from('events')
     .select('*', { count: 'exact', head: true })
@@ -50,6 +51,31 @@ export default async function DashboardPage() {
     .from('team_members')
     .select('*', { count: 'exact', head: true })
     .eq('user_id', user.id)
+  
+  const { count: tournamentsCount } = await supabase
+    .from('tournaments')
+    .select('*', { count: 'exact', head: true })
+    .eq('created_by', user.id)
+  
+  // Eventi recenti
+  const { data: recentEvents } = await supabase
+    .from('events')
+    .select(`
+      *,
+      home_team:teams!home_team_id(*),
+      away_team:teams!away_team_id(*)
+    `)
+    .eq('created_by', user.id)
+    .order('scheduled_at', { ascending: false })
+    .limit(3)
+  
+  // Tornei attivi
+  const { data: activeTournaments } = await supabase
+    .from('tournaments')
+    .select('*')
+    .in('status', ['registration_open', 'in_progress'])
+    .order('created_at', { ascending: false })
+    .limit(3)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -62,7 +88,7 @@ export default async function DashboardPage() {
             Benvenuto {profile?.full_name || 'su CampoLive'}!
           </h1>
           <p className="text-gray-600">
-            Ecco un riepilogo della tua attività
+            Ecco un riepilogo della tua attività sportiva
           </p>
         </div>
 
@@ -94,6 +120,19 @@ export default async function DashboardPage() {
             <p className="text-blue-600 text-sm mt-1">Vedi tutti →</p>
           </Link>
 
+          <Link href="/tournaments" className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition">
+            <div className="flex items-center justify-between mb-4">
+              <div className="bg-yellow-100 p-3 rounded-lg">
+                <Trophy className="w-6 h-6 text-yellow-600" />
+              </div>
+              <span className="text-3xl font-bold text-gray-900">
+                {tournamentsCount || 0}
+              </span>
+            </div>
+            <p className="text-gray-600 text-sm">Tornei organizzati</p>
+            <p className="text-yellow-600 text-sm mt-1">Gestisci →</p>
+          </Link>
+
           <Link href="/teams" className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition">
             <div className="flex items-center justify-between mb-4">
               <div className="bg-purple-100 p-3 rounded-lg">
@@ -106,60 +145,126 @@ export default async function DashboardPage() {
             <p className="text-gray-600 text-sm">I tuoi team</p>
             <p className="text-purple-600 text-sm mt-1">Gestisci →</p>
           </Link>
-
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="bg-orange-100 p-3 rounded-lg">
-                <Video className="w-6 h-6 text-orange-600" />
-              </div>
-              <span className="text-3xl font-bold text-gray-900">0</span>
-            </div>
-            <p className="text-gray-600 text-sm">Video salvati</p>
-            <p className="text-gray-400 text-sm mt-1">Presto disponibile</p>
-          </div>
         </div>
 
         {/* Quick Actions */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
           <h2 className="text-lg font-semibold mb-4">Azioni rapide</h2>
-          <div className="grid md:grid-cols-4 gap-4">
+          <div className="grid md:grid-cols-5 gap-4">
+            <Link 
+              href="/tournaments/new"
+              className="border-2 border-yellow-600 text-yellow-600 p-4 rounded-lg hover:bg-yellow-50 text-center font-medium transition flex flex-col items-center"
+            >
+              <Trophy className="w-6 h-6 mb-2" />
+              Crea Torneo
+            </Link>
             <Link 
               href="/events/new"
-              className="border-2 border-green-600 text-green-600 p-4 rounded-lg hover:bg-green-50 text-center font-medium transition"
+              className="border-2 border-green-600 text-green-600 p-4 rounded-lg hover:bg-green-50 text-center font-medium transition flex flex-col items-center"
             >
-              ➕ Nuovo Evento
+              <Calendar className="w-6 h-6 mb-2" />
+              Nuovo Evento
             </Link>
             <Link 
               href="/teams/new"
-              className="border-2 border-purple-600 text-purple-600 p-4 rounded-lg hover:bg-purple-50 text-center font-medium transition"
+              className="border-2 border-purple-600 text-purple-600 p-4 rounded-lg hover:bg-purple-50 text-center font-medium transition flex flex-col items-center"
             >
-              👥 Crea Team
+              <Users className="w-6 h-6 mb-2" />
+              Crea Team
             </Link>
             <Link 
               href="/credits"
-              className="border-2 border-blue-600 text-blue-600 p-4 rounded-lg hover:bg-blue-50 text-center font-medium transition"
+              className="border-2 border-blue-600 text-blue-600 p-4 rounded-lg hover:bg-blue-50 text-center font-medium transition flex flex-col items-center"
             >
-              💳 Acquista Crediti
+              <CreditCard className="w-6 h-6 mb-2" />
+              Acquista Crediti
             </Link>
             <button 
               disabled
-              className="border-2 border-gray-300 text-gray-400 p-4 rounded-lg cursor-not-allowed text-center font-medium"
+              className="border-2 border-gray-300 text-gray-400 p-4 rounded-lg cursor-not-allowed text-center font-medium flex flex-col items-center"
             >
-              📡 Vai Live (Presto)
+              <Video className="w-6 h-6 mb-2" />
+              Vai Live (Presto)
             </button>
           </div>
         </div>
 
-        {/* Recent Activity */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Attività Recente</h2>
-            <Activity className="w-5 h-5 text-gray-400" />
+        <div className="grid md:grid-cols-2 gap-8">
+          {/* Recent Events */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Prossimi Eventi</h2>
+              <Calendar className="w-5 h-5 text-gray-400" />
+            </div>
+            {recentEvents && recentEvents.length > 0 ? (
+              <div className="space-y-3">
+                {recentEvents.map((event) => (
+                  <Link 
+                    key={event.id}
+                    href={`/events/${event.id}`}
+                    className="block p-3 border rounded-lg hover:bg-gray-50 transition"
+                  >
+                    <div className="font-medium text-sm">
+                      {event.home_team?.name} vs {event.away_team?.name}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {new Date(event.scheduled_at).toLocaleDateString('it-IT')}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="text-gray-500 text-center py-8">
+                <Calendar className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p>Nessun evento programmato</p>
+                <Link href="/events/new" className="text-sm text-green-600 mt-2 inline-block">
+                  Crea il tuo primo evento
+                </Link>
+              </div>
+            )}
           </div>
-          <div className="text-gray-500 text-center py-12">
-            <Activity className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-            <p>Nessuna attività recente</p>
-            <p className="text-sm mt-2">Le tue attività appariranno qui</p>
+
+          {/* Active Tournaments */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Tornei Attivi</h2>
+              <Trophy className="w-5 h-5 text-gray-400" />
+            </div>
+            {activeTournaments && activeTournaments.length > 0 ? (
+              <div className="space-y-3">
+                {activeTournaments.map((tournament) => (
+                  <Link 
+                    key={tournament.id}
+                    href={`/tournaments/${tournament.id}`}
+                    className="block p-3 border rounded-lg hover:bg-gray-50 transition"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium text-sm">{tournament.name}</div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {tournament.sport} • {tournament.city}
+                        </div>
+                      </div>
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        tournament.status === 'in_progress' 
+                          ? 'bg-green-100 text-green-700' 
+                          : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {tournament.status === 'in_progress' ? 'In corso' : 'Iscrizioni aperte'}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="text-gray-500 text-center py-8">
+                <Trophy className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p>Nessun torneo attivo</p>
+                <Link href="/tournaments/new" className="text-sm text-yellow-600 mt-2 inline-block">
+                  Organizza un torneo
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </main>
