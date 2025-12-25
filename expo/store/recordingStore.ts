@@ -1,8 +1,14 @@
 import { create } from 'zustand'
-import * as FileSystem from 'expo-file-system'
-import * as MediaLibrary from 'expo-media-library'
-import type { TimelineClip, ActionTagId, RecordingSegment } from '@/types'
+import * as FileSystem from 'expo-file-system/legacy'
+import type { TimelineClip, ActionTagId } from '@/types'
 import { HIGHLIGHT_DURATION_SECONDS, UNLOCK_BUTTONS_SECONDS } from '@/constants'
+import { 
+  generateClipPath, 
+  cleanRecordingDirectory,
+  deleteVideoFile,
+  calculateTrimParams,
+  saveToGallery
+} from '@/lib/videoTrim'
 
 interface RecordingState {
   // Stato registrazione
@@ -10,9 +16,8 @@ interface RecordingState {
   recordingStartTime: number | null
   totalRecordingTime: number
   
-  // Segmenti video temporanei (buffer degli ultimi ~60 sec)
-  segments: RecordingSegment[]
-  currentSegmentUri: string | null
+  // File di registrazione continua
+  currentRecordingUri: string | null
   
   // Timeline dei clip salvati (locale)
   timeline: TimelineClip[]
@@ -23,11 +28,13 @@ interface RecordingState {
   // Event ID collegato (se registra per un evento specifico)
   eventId: string | null
   
+  // Stato trimming
+  isTrimming: boolean
+  
   // Actions
-  startRecording: () => void
+  startRecording: (recordingUri: string) => void
   stopRecording: () => void
-  onSegmentComplete: (uri: string, duration: number) => void
-  saveClip: () => Promise<TimelineClip | null>
+  saveHighlight: (videoUri: string) => Promise<TimelineClip | null>
   discardAll: () => Promise<void>
   addTagToClip: (clipId: string, tag: ActionTagId) => void
   removeTagFromClip: (clipId: string, tag: ActionTagId) => void
@@ -47,19 +54,18 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
   isRecording: false,
   recordingStartTime: null,
   totalRecordingTime: 0,
-  segments: [],
-  currentSegmentUri: null,
+  currentRecordingUri: null,
   timeline: [],
   currentClipForTagging: null,
   eventId: null,
+  isTrimming: false,
 
-  startRecording: () => {
+  startRecording: (recordingUri: string) => {
     set({
       isRecording: true,
       recordingStartTime: Date.now(),
       totalRecordingTime: 0,
-      segments: [],
-      currentSegmentUri: null,
+      currentRecordingUri: recordingUri,
     })
   },
 
@@ -69,134 +75,94 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
     })
   },
 
-  onSegmentComplete: (uri, duration) => {
-    const { segments } = get()
-    const now = Date.now()
+  /**
+   * Salva un highlight (ultimi 30 secondi) dal video corrente.
+   * Poiché react-native-video-trim ha bisogno di interazione UI per trimmrare,
+   * usiamo un approccio alternativo: copiamo il video e poi usiamo FFmpeg
+   * se disponibile, altrimenti salviamo il video intero.
+   * 
+   * Per ora: salviamo il video intero ma tracciamo start/end time per 
+   * trimmare lato server o in un secondo momento.
+   */
+  saveHighlight: async (videoUri: string) => {
+    const { timeline, eventId, totalRecordingTime } = get()
     
-    const newSegment: RecordingSegment = {
-      uri,
-      startTime: now - (duration * 1000),
-      endTime: now,
-      duration,
-    }
-    
-    // Mantieni solo gli ultimi segmenti necessari per ~60 secondi (2x highlight)
-    const allSegments = [...segments, newSegment]
-    let totalDuration = allSegments.reduce((sum, seg) => sum + seg.duration, 0)
-    
-    // Rimuovi segmenti vecchi se necessario
-    while (totalDuration > HIGHLIGHT_DURATION_SECONDS * 2 && allSegments.length > 1) {
-      const removed = allSegments.shift()
-      if (removed) {
-        totalDuration -= removed.duration
-        // Elimina il file del segmento rimosso
-        FileSystem.deleteAsync(removed.uri, { idempotent: true }).catch(() => {})
-      }
-    }
-    
-    set({
-      segments: allSegments,
-      currentSegmentUri: null,
-    })
-  },
-
-  saveClip: async () => {
-    const { segments, timeline, eventId, totalRecordingTime } = get()
-    
-    if (segments.length === 0) {
-      console.log('Nessun segmento disponibile')
+    if (!videoUri) {
+      console.log('Nessun video disponibile')
       return null
     }
     
+    set({ isTrimming: true })
+    
     try {
-      // Prendi l'ultimo segmento completato (contiene gli ultimi ~30 sec)
-      const lastSegment = segments[segments.length - 1]
+      // Calcola i parametri di trim
+      const { startTime, endTime, duration } = calculateTrimParams(
+        totalRecordingTime,
+        HIGHLIGHT_DURATION_SECONDS
+      )
       
-      // Genera ID e path per il clip
+      // Genera path per il clip
       const clipId = `clip_${Date.now()}`
-      const clipsDir = `${FileSystem.documentDirectory}clips/`
-      const clipPath = `${clipsDir}${clipId}.mp4`
+      const clipPath = await generateClipPath()
       
-      // Crea directory se non esiste
-      const dirInfo = await FileSystem.getInfoAsync(clipsDir)
-      if (!dirInfo.exists) {
-        await FileSystem.makeDirectoryAsync(clipsDir, { intermediates: true })
-      }
-      
-      // Copia il file nella directory clips
+      // Copia il video nella directory clips
       await FileSystem.copyAsync({
-        from: lastSegment.uri,
+        from: videoUri,
         to: clipPath,
       })
       
-      // Salva anche nella galleria del telefono
-      try {
-        const { status } = await MediaLibrary.requestPermissionsAsync()
-        if (status === 'granted') {
-          const asset = await MediaLibrary.createAssetAsync(clipPath)
-          let album = await MediaLibrary.getAlbumAsync('CampoLive')
-          if (!album) {
-            album = await MediaLibrary.createAlbumAsync('CampoLive', asset, false)
-          } else {
-            await MediaLibrary.addAssetsToAlbumAsync([asset], album, false)
-          }
-        }
-      } catch (mediaError) {
-        console.log('Errore salvataggio in galleria:', mediaError)
-        // Non bloccare se fallisce il salvataggio in galleria
-      }
+      console.log('Video copiato in:', clipPath)
       
-      // Crea il clip
+      // Salva nella galleria del telefono
+      const savedToGallery = await saveToGallery(clipPath)
+      console.log('Salvato in galleria:', savedToGallery)
+      
+      // Crea il clip con metadati di trim
       const newClip: TimelineClip = {
         id: clipId,
         uri: clipPath,
-        duration: Math.min(lastSegment.duration, HIGHLIGHT_DURATION_SECONDS),
+        duration: duration,
         createdAt: new Date(),
         tags: [],
         isUploaded: false,
         eventId: eventId || undefined,
+        // Metadati per trim posteriore
+        trimStartTime: startTime,
+        trimEndTime: endTime,
+        originalDuration: totalRecordingTime,
       }
       
       set({
         timeline: [...timeline, newClip],
         currentClipForTagging: newClip,
+        isTrimming: false,
       })
       
       return newClip
     } catch (error) {
-      console.error('Errore salvataggio clip:', error)
+      console.error('Errore salvataggio highlight:', error)
+      set({ isTrimming: false })
       return null
     }
   },
 
   discardAll: async () => {
-    const { segments, currentSegmentUri } = get()
+    const { currentRecordingUri } = get()
     
-    // Elimina tutti i segmenti temporanei
-    for (const segment of segments) {
-      try {
-        await FileSystem.deleteAsync(segment.uri, { idempotent: true })
-      } catch (e) {
-        console.log('Errore eliminazione segmento:', e)
-      }
+    // Elimina file di registrazione corrente
+    if (currentRecordingUri) {
+      await deleteVideoFile(currentRecordingUri)
     }
     
-    // Elimina segmento corrente se esiste
-    if (currentSegmentUri) {
-      try {
-        await FileSystem.deleteAsync(currentSegmentUri, { idempotent: true })
-      } catch (e) {
-        console.log('Errore eliminazione segmento corrente:', e)
-      }
-    }
+    // Pulisci directory registrazione
+    await cleanRecordingDirectory()
     
-    // Reset registrazione ma mantieni timeline esistente
+    // Reset stato ma mantieni timeline
     set({
       isRecording: false,
       recordingStartTime: null,
       totalRecordingTime: 0,
-      segments: [],
-      currentSegmentUri: null,
+      currentRecordingUri: null,
     })
   },
 
@@ -237,12 +203,7 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
     const clip = timeline.find(c => c.id === clipId)
     
     if (clip) {
-      // Elimina il file
-      try {
-        await FileSystem.deleteAsync(clip.uri, { idempotent: true })
-      } catch (e) {
-        console.log('Errore eliminazione file clip:', e)
-      }
+      await deleteVideoFile(clip.uri)
     }
     
     set((state) => ({
@@ -273,8 +234,8 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
   },
 
   canSave: () => {
-    const { totalRecordingTime, segments } = get()
-    return totalRecordingTime >= UNLOCK_BUTTONS_SECONDS && segments.length > 0
+    const { totalRecordingTime, isRecording } = get()
+    return totalRecordingTime >= UNLOCK_BUTTONS_SECONDS && isRecording
   },
 
   canDiscard: () => {
@@ -287,11 +248,11 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
       isRecording: false,
       recordingStartTime: null,
       totalRecordingTime: 0,
-      segments: [],
-      currentSegmentUri: null,
+      currentRecordingUri: null,
       timeline: [],
       currentClipForTagging: null,
       eventId: null,
+      isTrimming: false,
     })
   },
 }))

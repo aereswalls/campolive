@@ -13,7 +13,8 @@ import {
   Video,
   Square,
   Tag,
-  List
+  List,
+  Loader2
 } from 'lucide-react-native'
 import { useRecordingStore } from '@/store/recordingStore'
 import { HIGHLIGHT_DURATION_SECONDS, UNLOCK_BUTTONS_SECONDS } from '@/constants'
@@ -27,7 +28,9 @@ interface RecordingCameraProps {
 
 export function RecordingCamera({ eventId, onClose, onRecordingComplete }: RecordingCameraProps) {
   const cameraRef = useRef<CameraView>(null)
-  const segmentIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const lastVideoUriRef = useRef<string | null>(null)
+  
   const [facing, setFacing] = useState<CameraType>('back')
   const [cameraPermission, requestCameraPermission] = useCameraPermissions()
   const [micPermission, requestMicPermission] = useMicrophonePermissions()
@@ -40,10 +43,10 @@ export function RecordingCamera({ eventId, onClose, onRecordingComplete }: Recor
     isRecording,
     timeline,
     currentClipForTagging,
+    isTrimming,
     startRecording,
     stopRecording,
-    onSegmentComplete,
-    saveClip,
+    saveHighlight,
     discardAll,
     addTagToClip,
     removeTagFromClip,
@@ -60,20 +63,33 @@ export function RecordingCamera({ eventId, onClose, onRecordingComplete }: Recor
     }
   }, [eventId])
 
-  // Timer per durata registrazione
+  // Timer per durata registrazione - separato dallo store per evitare re-render
   useEffect(() => {
-    let interval: NodeJS.Timeout
-    if (isRecording) {
-      interval = setInterval(() => {
-        setRecordingTime(prev => {
-          const newTime = prev + 1
-          updateTime(newTime)
-          return newTime
-        })
+    if (isActivelyRecording) {
+      timerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1)
       }, 1000)
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
     }
-    return () => clearInterval(interval)
-  }, [isRecording])
+    
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+    }
+  }, [isActivelyRecording])
+
+  // Aggiorna lo store solo quando il tempo cambia (effetto separato)
+  useEffect(() => {
+    if (isActivelyRecording) {
+      updateTime(recordingTime)
+    }
+  }, [recordingTime, isActivelyRecording])
 
   // Mostra modal tag quando c'è un clip da taggare
   useEffect(() => {
@@ -93,87 +109,111 @@ export function RecordingCamera({ eventId, onClose, onRecordingComplete }: Recor
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
-  // Avvia registrazione continua in segmenti
-  const handleStartRecording = async () => {
+  // Avvia registrazione continua
+  const handleStartRecording = useCallback(async () => {
     if (!cameraRef.current || isActivelyRecording) return
 
+    console.log('Avvio registrazione...')
     setIsActivelyRecording(true)
-    startRecording()
-    startSegmentRecording()
-  }
-
-  // Registra un segmento di ~30 secondi
-  const startSegmentRecording = async () => {
-    if (!cameraRef.current) return
-
+    setRecordingTime(0)
+    startRecording('')
+    
     try {
-      const video = await cameraRef.current.recordAsync({
-        maxDuration: HIGHLIGHT_DURATION_SECONDS,
-      })
+      // Avvia registrazione continua senza maxDuration
+      const video = await cameraRef.current.recordAsync({})
       
       if (video) {
-        // Segmento completato, salvalo nel buffer
-        onSegmentComplete(video.uri, HIGHLIGHT_DURATION_SECONDS)
-        
-        // Se ancora in recording, avvia nuovo segmento
-        if (useRecordingStore.getState().isRecording) {
-          startSegmentRecording()
-        }
+        console.log('Video registrato:', video.uri)
+        lastVideoUriRef.current = video.uri
       }
     } catch (error) {
-      console.error('Errore segmento registrazione:', error)
+      console.error('Errore registrazione:', error)
+      setIsActivelyRecording(false)
+      stopRecording()
     }
-  }
+  }, [isActivelyRecording, startRecording, stopRecording])
 
   // Stop registrazione
-  const handleStopRecording = async () => {
-    if (!cameraRef.current) return
+  const handleStopRecording = useCallback(async () => {
+    if (!cameraRef.current || !isActivelyRecording) return
+    
+    console.log('Stop registrazione...')
     
     try {
       cameraRef.current.stopRecording()
-      stopRecording()
-      setIsActivelyRecording(false)
     } catch (error) {
       console.error('Errore stop registrazione:', error)
     }
-  }
+    
+    setIsActivelyRecording(false)
+    stopRecording()
+  }, [isActivelyRecording, stopRecording])
 
-  // Salva clip (ultimi 30 sec)
-  const handleSaveClip = async () => {
-    if (recordingTime < UNLOCK_BUTTONS_SECONDS) return
+  // Salva highlight - ferma, salva, e riprende
+  const handleSaveClip = useCallback(async () => {
+    if (recordingTime < UNLOCK_BUTTONS_SECONDS || !isActivelyRecording) {
+      console.log('Non posso salvare:', { recordingTime, isActivelyRecording })
+      return
+    }
     
     setIsSaving(true)
     Vibration.vibrate(100)
     
-    // Ferma registrazione corrente per salvare il segmento
-    if (cameraRef.current && isActivelyRecording) {
-      cameraRef.current.stopRecording()
-    }
-    
     try {
-      const clip = await saveClip()
+      // Ferma la registrazione per ottenere il file
+      console.log('Fermo registrazione per salvare...')
+      if (cameraRef.current) {
+        cameraRef.current.stopRecording()
+      }
       
-      if (clip) {
-        Vibration.vibrate([0, 100, 100, 100])
-        // Il modal tag si aprirà automaticamente grazie all'useEffect
+      // Aspetta che il video sia pronto
+      await new Promise(resolve => setTimeout(resolve, 800))
+      
+      const videoUri = lastVideoUriRef.current
+      console.log('Video URI per salvataggio:', videoUri)
+      
+      if (videoUri) {
+        const clip = await saveHighlight(videoUri)
+        
+        if (clip) {
+          console.log('Clip salvato:', clip.id)
+          Vibration.vibrate([0, 100, 100, 100])
+          Alert.alert('✅ Salvato!', 'Highlight salvato nella galleria CampoLive')
+        } else {
+          Alert.alert('Errore', 'Impossibile salvare il clip')
+        }
       } else {
-        Alert.alert('Errore', 'Impossibile salvare il clip')
+        Alert.alert('Errore', 'Nessun video disponibile da salvare')
       }
     } catch (error) {
-      console.error('Errore salvataggio clip:', error)
+      console.error('Errore salvataggio:', error)
       Alert.alert('Errore', 'Si è verificato un errore nel salvataggio')
     } finally {
       setIsSaving(false)
       
-      // Riprendi registrazione
-      if (isRecording) {
-        startSegmentRecording()
+      // Riprendi registrazione automaticamente
+      console.log('Riprendo registrazione...')
+      setRecordingTime(0)
+      startRecording('')
+      setIsActivelyRecording(true)
+      
+      if (cameraRef.current) {
+        cameraRef.current.recordAsync({}).then(video => {
+          if (video) {
+            console.log('Nuova registrazione avviata:', video.uri)
+            lastVideoUriRef.current = video.uri
+          }
+        }).catch(err => {
+          console.error('Errore riavvio registrazione:', err)
+          setIsActivelyRecording(false)
+          stopRecording()
+        })
       }
     }
-  }
+  }, [recordingTime, isActivelyRecording, saveHighlight, startRecording, stopRecording])
 
   // Scarta tutto e ricomincia
-  const handleDiscard = () => {
+  const handleDiscard = useCallback(() => {
     Alert.alert(
       '🗑️ Scarta Registrazione',
       'Vuoi scartare tutta la registrazione corrente e ricominciare da zero?',
@@ -189,15 +229,16 @@ export function RecordingCamera({ eventId, onClose, onRecordingComplete }: Recor
             await discardAll()
             setRecordingTime(0)
             setIsActivelyRecording(false)
+            lastVideoUriRef.current = null
             Vibration.vibrate(200)
           }
         },
       ]
     )
-  }
+  }, [isActivelyRecording, discardAll])
 
   // Termina sessione
-  const handleFinish = () => {
+  const handleFinish = useCallback(() => {
     Alert.alert(
       'Termina Registrazione',
       `Hai ${timeline.length} clip nella timeline. Vuoi terminare la sessione?`,
@@ -210,6 +251,7 @@ export function RecordingCamera({ eventId, onClose, onRecordingComplete }: Recor
               cameraRef.current.stopRecording()
             }
             stopRecording()
+            setIsActivelyRecording(false)
             onRecordingComplete?.(timeline)
             reset()
             onClose()
@@ -217,7 +259,7 @@ export function RecordingCamera({ eventId, onClose, onRecordingComplete }: Recor
         },
       ]
     )
-  }
+  }, [timeline, isActivelyRecording, stopRecording, onRecordingComplete, reset, onClose])
 
   // Toggle tag su clip corrente
   const handleTagToggle = (tagId: ActionTagId) => {
@@ -390,21 +432,23 @@ export function RecordingCamera({ eventId, onClose, onRecordingComplete }: Recor
             {/* Salva Button */}
             <TouchableOpacity
               onPress={handleSaveClip}
-              disabled={!buttonsUnlocked || isSaving}
+              disabled={!buttonsUnlocked || isSaving || isTrimming}
               style={styles.controlItem}
             >
               <View style={[
                 styles.sideButton, 
                 styles.saveButton,
-                (!buttonsUnlocked || isSaving) && styles.buttonDisabled
+                (!buttonsUnlocked || isSaving || isTrimming) && styles.buttonDisabled
               ]}>
-                {isSaving ? (
-                  <Text style={styles.savingText}>...</Text>
+                {(isSaving || isTrimming) ? (
+                  <Loader2 size={24} color="#fff" />
                 ) : (
                   <Save size={24} color="#fff" />
                 )}
               </View>
-              <Text style={styles.controlLabel}>Salva</Text>
+              <Text style={styles.controlLabel}>
+                {isTrimming ? 'Salvo...' : 'Salva'}
+              </Text>
             </TouchableOpacity>
           </View>
 

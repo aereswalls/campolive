@@ -258,6 +258,10 @@ export interface TimelineClip {
   thumbnailUri?: string
   isUploaded: boolean
   eventId?: string
+  // Metadati per trim posteriore (quando il video è più lungo del clip)
+  trimStartTime?: number
+  trimEndTime?: number
+  originalDuration?: number
 }
 
 // Highlight nel database (dopo upload)
