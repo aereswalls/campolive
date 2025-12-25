@@ -46,4 +46,5 @@ export const EVENT_STATUSES = {
 
 // Highlight settings
 export const HIGHLIGHT_DURATION_SECONDS = 30
+export const UNLOCK_BUTTONS_SECONDS = 5 // Secondi prima di sbloccare Salva/Scarta
 export const MAX_RECORDING_DURATION_HOURS = 3

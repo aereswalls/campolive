@@ -1,252 +1,297 @@
 import { create } from 'zustand'
 import * as FileSystem from 'expo-file-system'
 import * as MediaLibrary from 'expo-media-library'
-import type { SavedHighlight, RecordingSegment } from '@/types'
-import { HIGHLIGHT_DURATION_SECONDS } from '@/constants'
+import type { TimelineClip, ActionTagId, RecordingSegment } from '@/types'
+import { HIGHLIGHT_DURATION_SECONDS, UNLOCK_BUTTONS_SECONDS } from '@/constants'
 
 interface RecordingState {
+  // Stato registrazione
   isRecording: boolean
-  isPaused: boolean
   recordingStartTime: number | null
-  currentSegmentUri: string | null
+  totalRecordingTime: number
+  
+  // Segmenti video temporanei (buffer degli ultimi ~60 sec)
   segments: RecordingSegment[]
-  highlights: SavedHighlight[]
-  recordingDuration: number
+  currentSegmentUri: string | null
+  
+  // Timeline dei clip salvati (locale)
+  timeline: TimelineClip[]
+  
+  // Clip corrente per tagging (dopo Salva)
+  currentClipForTagging: TimelineClip | null
+  
+  // Event ID collegato (se registra per un evento specifico)
+  eventId: string | null
   
   // Actions
-  startRecording: (uri: string) => void
+  startRecording: () => void
   stopRecording: () => void
-  pauseRecording: () => void
-  resumeRecording: (uri: string) => void
-  addSegment: (segment: RecordingSegment) => void
-  saveHighlight: () => Promise<SavedHighlight | null>
-  discardRecording: () => Promise<void>
-  clearHighlights: () => void
-  updateDuration: (duration: number) => void
+  onSegmentComplete: (uri: string, duration: number) => void
+  saveClip: () => Promise<TimelineClip | null>
+  discardAll: () => Promise<void>
+  addTagToClip: (clipId: string, tag: ActionTagId) => void
+  removeTagFromClip: (clipId: string, tag: ActionTagId) => void
+  removeClip: (clipId: string) => Promise<void>
+  markClipAsUploaded: (clipId: string) => void
+  finishTagging: () => void
+  setEventId: (eventId: string | null) => void
+  updateTime: (time: number) => void
   reset: () => void
+  
+  // Getters
+  canSave: () => boolean
+  canDiscard: () => boolean
 }
 
 export const useRecordingStore = create<RecordingState>((set, get) => ({
   isRecording: false,
-  isPaused: false,
   recordingStartTime: null,
-  currentSegmentUri: null,
+  totalRecordingTime: 0,
   segments: [],
-  highlights: [],
-  recordingDuration: 0,
+  currentSegmentUri: null,
+  timeline: [],
+  currentClipForTagging: null,
+  eventId: null,
 
-  startRecording: (uri) => {
+  startRecording: () => {
     set({
       isRecording: true,
-      isPaused: false,
       recordingStartTime: Date.now(),
-      currentSegmentUri: uri,
+      totalRecordingTime: 0,
       segments: [],
+      currentSegmentUri: null,
     })
   },
 
   stopRecording: () => {
-    const { currentSegmentUri, recordingStartTime, segments } = get()
-    
-    if (currentSegmentUri && recordingStartTime) {
-      const now = Date.now()
-      const newSegment: RecordingSegment = {
-        uri: currentSegmentUri,
-        startTime: recordingStartTime,
-        endTime: now,
-        duration: (now - recordingStartTime) / 1000,
-      }
-      
-      set({
-        isRecording: false,
-        isPaused: false,
-        segments: [...segments, newSegment],
-        currentSegmentUri: null,
-      })
-    } else {
-      set({
-        isRecording: false,
-        isPaused: false,
-        currentSegmentUri: null,
-      })
-    }
-  },
-
-  pauseRecording: () => {
-    const { currentSegmentUri, recordingStartTime, segments } = get()
-    
-    if (currentSegmentUri && recordingStartTime) {
-      const now = Date.now()
-      const newSegment: RecordingSegment = {
-        uri: currentSegmentUri,
-        startTime: recordingStartTime,
-        endTime: now,
-        duration: (now - recordingStartTime) / 1000,
-      }
-      
-      set({
-        isPaused: true,
-        segments: [...segments, newSegment],
-        currentSegmentUri: null,
-      })
-    }
-  },
-
-  resumeRecording: (uri) => {
     set({
-      isPaused: false,
-      recordingStartTime: Date.now(),
-      currentSegmentUri: uri,
+      isRecording: false,
     })
   },
 
-  addSegment: (segment) => {
-    set((state) => ({
-      segments: [...state.segments, segment],
-    }))
+  onSegmentComplete: (uri, duration) => {
+    const { segments } = get()
+    const now = Date.now()
+    
+    const newSegment: RecordingSegment = {
+      uri,
+      startTime: now - (duration * 1000),
+      endTime: now,
+      duration,
+    }
+    
+    // Mantieni solo gli ultimi segmenti necessari per ~60 secondi (2x highlight)
+    const allSegments = [...segments, newSegment]
+    let totalDuration = allSegments.reduce((sum, seg) => sum + seg.duration, 0)
+    
+    // Rimuovi segmenti vecchi se necessario
+    while (totalDuration > HIGHLIGHT_DURATION_SECONDS * 2 && allSegments.length > 1) {
+      const removed = allSegments.shift()
+      if (removed) {
+        totalDuration -= removed.duration
+        // Elimina il file del segmento rimosso
+        FileSystem.deleteAsync(removed.uri, { idempotent: true }).catch(() => {})
+      }
+    }
+    
+    set({
+      segments: allSegments,
+      currentSegmentUri: null,
+    })
   },
 
-  saveHighlight: async () => {
-    const { segments, currentSegmentUri, recordingStartTime, highlights } = get()
+  saveClip: async () => {
+    const { segments, timeline, eventId, totalRecordingTime } = get()
+    
+    if (segments.length === 0) {
+      console.log('Nessun segmento disponibile')
+      return null
+    }
     
     try {
-      // Calcola quali segmenti includere per gli ultimi 30 secondi
-      const now = Date.now()
-      const highlightStartTime = now - (HIGHLIGHT_DURATION_SECONDS * 1000)
+      // Prendi l'ultimo segmento completato (contiene gli ultimi ~30 sec)
+      const lastSegment = segments[segments.length - 1]
       
-      // Crea una lista di tutti i segmenti incluso quello corrente
-      let allSegments = [...segments]
+      // Genera ID e path per il clip
+      const clipId = `clip_${Date.now()}`
+      const clipsDir = `${FileSystem.documentDirectory}clips/`
+      const clipPath = `${clipsDir}${clipId}.mp4`
       
-      if (currentSegmentUri && recordingStartTime) {
-        allSegments.push({
-          uri: currentSegmentUri,
-          startTime: recordingStartTime,
-          endTime: now,
-          duration: (now - recordingStartTime) / 1000,
-        })
-      }
-      
-      // Filtra i segmenti che rientrano negli ultimi 30 secondi
-      const relevantSegments = allSegments.filter(
-        seg => seg.endTime >= highlightStartTime
-      )
-      
-      if (relevantSegments.length === 0) {
-        console.log('Nessun segmento disponibile per l\'highlight')
-        return null
-      }
-      
-      // Per semplicità, usa l'ultimo segmento disponibile
-      // In produzione si dovrebbe fare un merge dei video
-      const lastSegment = relevantSegments[relevantSegments.length - 1]
-      
-      // Genera un nome file univoco
-      const highlightId = `highlight_${Date.now()}`
-      const highlightDir = `${FileSystem.documentDirectory}highlights/`
-      const highlightPath = `${highlightDir}${highlightId}.mp4`
-      
-      // Crea la directory se non esiste
-      const dirInfo = await FileSystem.getInfoAsync(highlightDir)
+      // Crea directory se non esiste
+      const dirInfo = await FileSystem.getInfoAsync(clipsDir)
       if (!dirInfo.exists) {
-        await FileSystem.makeDirectoryAsync(highlightDir, { intermediates: true })
+        await FileSystem.makeDirectoryAsync(clipsDir, { intermediates: true })
       }
       
-      // Copia il file
+      // Copia il file nella directory clips
       await FileSystem.copyAsync({
         from: lastSegment.uri,
-        to: highlightPath,
+        to: clipPath,
       })
       
-      // Salva nella galleria
-      const { status } = await MediaLibrary.requestPermissionsAsync()
-      if (status === 'granted') {
-        const asset = await MediaLibrary.createAssetAsync(highlightPath)
-        
-        // Crea o ottieni l'album CampoLive
-        let album = await MediaLibrary.getAlbumAsync('CampoLive Highlights')
-        if (!album) {
-          album = await MediaLibrary.createAlbumAsync('CampoLive Highlights', asset, false)
-        } else {
-          await MediaLibrary.addAssetsToAlbumAsync([asset], album, false)
+      // Salva anche nella galleria del telefono
+      try {
+        const { status } = await MediaLibrary.requestPermissionsAsync()
+        if (status === 'granted') {
+          const asset = await MediaLibrary.createAssetAsync(clipPath)
+          let album = await MediaLibrary.getAlbumAsync('CampoLive')
+          if (!album) {
+            album = await MediaLibrary.createAlbumAsync('CampoLive', asset, false)
+          } else {
+            await MediaLibrary.addAssetsToAlbumAsync([asset], album, false)
+          }
         }
+      } catch (mediaError) {
+        console.log('Errore salvataggio in galleria:', mediaError)
+        // Non bloccare se fallisce il salvataggio in galleria
       }
       
-      const highlight: SavedHighlight = {
-        id: highlightId,
-        uri: highlightPath,
+      // Crea il clip
+      const newClip: TimelineClip = {
+        id: clipId,
+        uri: clipPath,
         duration: Math.min(lastSegment.duration, HIGHLIGHT_DURATION_SECONDS),
         createdAt: new Date(),
+        tags: [],
+        isUploaded: false,
+        eventId: eventId || undefined,
       }
       
-      set({ highlights: [...highlights, highlight] })
+      set({
+        timeline: [...timeline, newClip],
+        currentClipForTagging: newClip,
+      })
       
-      return highlight
+      return newClip
     } catch (error) {
-      console.error('Errore nel salvare l\'highlight:', error)
+      console.error('Errore salvataggio clip:', error)
       return null
     }
   },
 
-  discardRecording: async () => {
-    const { segments, currentSegmentUri, highlights } = get()
+  discardAll: async () => {
+    const { segments, currentSegmentUri } = get()
     
-    try {
-      // Elimina tutti i segmenti registrati (ma NON gli highlights già salvati)
-      for (const segment of segments) {
-        try {
-          const fileInfo = await FileSystem.getInfoAsync(segment.uri)
-          if (fileInfo.exists) {
-            await FileSystem.deleteAsync(segment.uri, { idempotent: true })
-          }
-        } catch (e) {
-          console.log('Errore eliminazione segmento:', e)
-        }
+    // Elimina tutti i segmenti temporanei
+    for (const segment of segments) {
+      try {
+        await FileSystem.deleteAsync(segment.uri, { idempotent: true })
+      } catch (e) {
+        console.log('Errore eliminazione segmento:', e)
       }
-      
-      // Elimina anche il segmento corrente se esiste
-      if (currentSegmentUri) {
-        try {
-          const fileInfo = await FileSystem.getInfoAsync(currentSegmentUri)
-          if (fileInfo.exists) {
-            await FileSystem.deleteAsync(currentSegmentUri, { idempotent: true })
-          }
-        } catch (e) {
-          console.log('Errore eliminazione segmento corrente:', e)
-        }
-      }
-      
-      // Reset stato ma mantieni gli highlights
-      set({
-        isRecording: false,
-        isPaused: false,
-        recordingStartTime: null,
-        currentSegmentUri: null,
-        segments: [],
-        recordingDuration: 0,
-        // highlights rimangono intatti
-      })
-    } catch (error) {
-      console.error('Errore nello scartare la registrazione:', error)
     }
+    
+    // Elimina segmento corrente se esiste
+    if (currentSegmentUri) {
+      try {
+        await FileSystem.deleteAsync(currentSegmentUri, { idempotent: true })
+      } catch (e) {
+        console.log('Errore eliminazione segmento corrente:', e)
+      }
+    }
+    
+    // Reset registrazione ma mantieni timeline esistente
+    set({
+      isRecording: false,
+      recordingStartTime: null,
+      totalRecordingTime: 0,
+      segments: [],
+      currentSegmentUri: null,
+    })
   },
 
-  clearHighlights: () => {
-    set({ highlights: [] })
+  addTagToClip: (clipId, tag) => {
+    set((state) => ({
+      timeline: state.timeline.map((clip) =>
+        clip.id === clipId && !clip.tags.includes(tag)
+          ? { ...clip, tags: [...clip.tags, tag] }
+          : clip
+      ),
+      currentClipForTagging: state.currentClipForTagging?.id === clipId
+        ? { 
+            ...state.currentClipForTagging, 
+            tags: [...new Set([...state.currentClipForTagging.tags, tag])] 
+          }
+        : state.currentClipForTagging,
+    }))
   },
 
-  updateDuration: (duration) => {
-    set({ recordingDuration: duration })
+  removeTagFromClip: (clipId, tag) => {
+    set((state) => ({
+      timeline: state.timeline.map((clip) =>
+        clip.id === clipId
+          ? { ...clip, tags: clip.tags.filter((t) => t !== tag) }
+          : clip
+      ),
+      currentClipForTagging: state.currentClipForTagging?.id === clipId
+        ? { 
+            ...state.currentClipForTagging, 
+            tags: state.currentClipForTagging.tags.filter((t) => t !== tag) 
+          }
+        : state.currentClipForTagging,
+    }))
+  },
+
+  removeClip: async (clipId: string) => {
+    const { timeline } = get()
+    const clip = timeline.find(c => c.id === clipId)
+    
+    if (clip) {
+      // Elimina il file
+      try {
+        await FileSystem.deleteAsync(clip.uri, { idempotent: true })
+      } catch (e) {
+        console.log('Errore eliminazione file clip:', e)
+      }
+    }
+    
+    set((state) => ({
+      timeline: state.timeline.filter(c => c.id !== clipId),
+    }))
+  },
+
+  markClipAsUploaded: (clipId: string) => {
+    set((state) => ({
+      timeline: state.timeline.map((clip) =>
+        clip.id === clipId
+          ? { ...clip, isUploaded: true }
+          : clip
+      ),
+    }))
+  },
+
+  finishTagging: () => {
+    set({ currentClipForTagging: null })
+  },
+
+  setEventId: (eventId) => {
+    set({ eventId })
+  },
+
+  updateTime: (time) => {
+    set({ totalRecordingTime: time })
+  },
+
+  canSave: () => {
+    const { totalRecordingTime, segments } = get()
+    return totalRecordingTime >= UNLOCK_BUTTONS_SECONDS && segments.length > 0
+  },
+
+  canDiscard: () => {
+    const { totalRecordingTime } = get()
+    return totalRecordingTime >= UNLOCK_BUTTONS_SECONDS
   },
 
   reset: () => {
     set({
       isRecording: false,
-      isPaused: false,
       recordingStartTime: null,
-      currentSegmentUri: null,
+      totalRecordingTime: 0,
       segments: [],
-      highlights: [],
-      recordingDuration: 0,
+      currentSegmentUri: null,
+      timeline: [],
+      currentClipForTagging: null,
+      eventId: null,
     })
   },
 }))

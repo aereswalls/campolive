@@ -1,9 +1,27 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { View, StatusBar } from 'react-native'
 import { router } from 'expo-router'
+import * as ScreenOrientation from 'expo-screen-orientation'
 import { RecordingCamera } from '@/components/recording'
 
 export default function RecordingScreen() {
+  // Forza orientamento landscape quando si entra nella schermata
+  useEffect(() => {
+    const lockOrientation = async () => {
+      await ScreenOrientation.lockAsync(
+        ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT
+      )
+    }
+    lockOrientation()
+
+    // Ripristina l'orientamento portrait quando si esce
+    return () => {
+      ScreenOrientation.lockAsync(
+        ScreenOrientation.OrientationLock.PORTRAIT_UP
+      )
+    }
+  }, [])
+
   const handleClose = () => {
     router.back()
   }
@@ -16,7 +34,7 @@ export default function RecordingScreen() {
 
   return (
     <View className="flex-1 bg-black">
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
+      <StatusBar hidden />
       <RecordingCamera
         onClose={handleClose}
         onRecordingComplete={handleRecordingComplete}

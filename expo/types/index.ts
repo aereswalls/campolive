@@ -233,3 +233,43 @@ export interface SavedHighlight {
   createdAt: Date
   thumbnailUri?: string
 }
+
+// Tag per azioni sportive
+export const ACTION_TAGS = [
+  { id: 'goal', label: 'Gol', emoji: '⚽', color: '#22c55e' },
+  { id: 'shot', label: 'Tiro', emoji: '🎯', color: '#3b82f6' },
+  { id: 'save', label: 'Parata', emoji: '🧤', color: '#f59e0b' },
+  { id: 'foul', label: 'Fallo', emoji: '🟨', color: '#eab308' },
+  { id: 'corner', label: 'Corner', emoji: '🚩', color: '#8b5cf6' },
+  { id: 'offside', label: 'Fuorigioco', emoji: '🏳️', color: '#6b7280' },
+  { id: 'assist', label: 'Assist', emoji: '👟', color: '#ec4899' },
+  { id: 'other', label: 'Altro', emoji: '📹', color: '#64748b' },
+] as const
+
+export type ActionTagId = typeof ACTION_TAGS[number]['id']
+
+// Clip nella timeline (locale, prima dell'upload)
+export interface TimelineClip {
+  id: string
+  uri: string
+  duration: number
+  createdAt: Date
+  tags: ActionTagId[]
+  thumbnailUri?: string
+  isUploaded: boolean
+  eventId?: string
+}
+
+// Highlight nel database (dopo upload)
+export interface EventHighlight {
+  id: string
+  event_id: string
+  title?: string
+  file_path: string
+  thumbnail_path?: string
+  start_time_seconds: number
+  end_time_seconds: number
+  highlight_type: 'manual' | 'auto'
+  tags: string[]
+  created_at: string
+}
