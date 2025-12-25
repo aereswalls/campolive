@@ -23,13 +23,23 @@ export default function RecordingScreen() {
   }, [])
 
   const handleClose = () => {
-    router.back()
+    // Usa canGoBack per verificare se c'è una schermata precedente
+    if (router.canGoBack()) {
+      router.back()
+    } else {
+      // Altrimenti vai alla home
+      router.replace('/(tabs)')
+    }
   }
 
   const handleRecordingComplete = (highlights: any[]) => {
     console.log('Recording completed with highlights:', highlights.length)
     // Qui puoi gestire il salvataggio degli highlight su Supabase
-    router.back()
+    if (router.canGoBack()) {
+      router.back()
+    } else {
+      router.replace('/(tabs)')
+    }
   }
 
   return (
