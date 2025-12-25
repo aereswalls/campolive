@@ -1,0 +1,65 @@
+{
+  "expo": {
+    "name": "CampoLive",
+    "slug": "campolive",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "campolive",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#16a34a"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.campolive.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "CampoLive ha bisogno di accedere alla fotocamera per registrare le partite",
+        "NSMicrophoneUsageDescription": "CampoLive ha bisogno di accedere al microfono per registrare l'audio delle partite",
+        "NSPhotoLibraryUsageDescription": "CampoLive ha bisogno di accedere alla galleria per salvare i video",
+        "NSPhotoLibraryAddUsageDescription": "CampoLive ha bisogno di salvare i video nella galleria"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#16a34a"
+      },
+      "package": "com.campolive.app",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permetti a CampoLive di accedere alla fotocamera",
+          "microphonePermission": "Permetti a CampoLive di accedere al microfono",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Permetti a CampoLive di accedere alle foto",
+          "savePhotosPermission": "Permetti a CampoLive di salvare foto e video",
+          "isAccessMediaLocationEnabled": true,
+          "audio": true
+        }
+      ],
+      "expo-asset"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
